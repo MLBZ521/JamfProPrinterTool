@@ -1,4 +1,4 @@
-#!/opt/EEMFrameworks/bin/python3
+#!//usr/bin/python3
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -22,10 +22,10 @@ from xml.sax.saxutils import escape
 
 
 __applicaiton__ = "Jamf Pro Printer Tool"
-__version__ = "v1.0.0rc"
+__version__ = "v1.0.1"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "8/11/2020"
+__updated__ = "9/3/2020"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
 
@@ -936,8 +936,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Get the selected values
         selected_site = self.selectedComboBoxValue(self.combo_sites)
         selected_local_printer = self.selectedListValue(self.qlist_local_printers)
-        # print("Selected Site:  {}".format(selected_site))
-        # print("Selected printer:  {}".format(selected_local_printer))
+        print("Selected printer to CREATE '{}' in '{}'".format(selected_local_printer, selected_site))
 
         # Ensure both of the required items have a selection
         if selected_site == None or selected_local_printer == None:
@@ -981,14 +980,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 try:
 
                     # POST to create a new printer in the JPS.
-                    response_create_printer = requests.post(url=api_Resource_Printers_Create, headers=headers, data=payload)
+                    response_create_printer = requests.post(url=api_Resource_Printers_Create, headers=headers, data=payload.encode('utf-8'))
 
-                    if response_create_printer.status_code != 200:
+                    if response_create_printer.status_code != 201:
 
                         # Update Status Bar and Pulse Progress Bar
                         warning_callback.emit("ERROR:  Failed to create the selected printer in Jamf Pro")
                         print("FAILED to create printer!")
                         print("Status Code:  {}".format(response_create_printer.status_code))
+                        print("URI:  {}".format(api_Resource_Printers_Create))
                         print(response_create_printer.text)
 
                     else:
@@ -1241,9 +1241,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         selected_site = self.selectedComboBoxValue(self.combo_sites)
         selected_local_printer = self.selectedListValue(self.qlist_local_printers)
         selected_jps_printer = self.selectedComboBoxValue(self.combo_printers)
-        # print("Selected Site:  {}".format(selected_site))
         # print("Selected local printer:  {}".format(selected_local_printer))
-        # print("Selected jps printer:  {}".format(selected_jps_printer))
+        print("Selected printer to UPDATE '{}' in '{}'".format(selected_jps_printer, selected_site))
 
         # Verify all required items have a selected value
         if selected_site == None or selected_local_printer == None or selected_jps_printer == None:
@@ -1303,7 +1302,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 try:
 
                     # PUT to update a new printer in the JPS.
-                    response_update_printer = requests.put(url=api_Resource_Printers_Update, headers=headers, data=payload)
+                    response_update_printer = requests.put(url=api_Resource_Printers_Update, headers=headers, data=payload.encode('utf-8'))
 
                     if response_update_printer.status_code != 201:
 
@@ -1311,6 +1310,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                         warning_callback.emit("ERROR:  Failed to update [{}] in Jamf Pro".format(selected_jps_printer))
                         print("ERROR:  Failed to update printer!")
                         print("Status Code:  {}".format(response_update_printer.status_code))
+                        print("URI:  {}".format(api_Resource_Printers_Update))
                         print(response_update_printer.text)
 
                     else:
@@ -1347,7 +1347,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.button_delete_printer.setEnabled(False)
 
         selected_jps_printer = self.selectedComboBoxValue(self.combo_printers)
-        print("Selected printer to delete:  {}".format(selected_jps_printer))
+        print("Selected printer to DELETE:  '{}'".format(selected_jps_printer))
 
         # Update Status Bar and Pulse Progress Bar
         progress_callback.emit({ "msg": "Deleting [{}] in Jamf Pro...".format(selected_jps_printer), "pb_type": "Pulse" })
@@ -1368,7 +1368,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             try:
 
                 # PUT to update a new printer in the JPS.
-                response_delete_printer = requests.put(url=api_Resource_Printers_Delete, headers=headers)
+                response_delete_printer = requests.delete(url=api_Resource_Printers_Delete, headers=headers)
 
                 if response_delete_printer.status_code != 200:
 
@@ -1376,6 +1376,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     warning_callback.emit("ERROR:  Failed to delete [{}] in Jamf Pro".format(selected_jps_printer))
                     print("FAILED to delete printer!")
                     print("Status Code:  {}".format(response_delete_printer.status_code))
+                    print("URI:  {}".format(api_Resource_Printers_Delete))
                     print(response_delete_printer.text)
 
                 else:
