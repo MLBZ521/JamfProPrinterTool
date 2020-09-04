@@ -19,10 +19,21 @@ So, for existing printers, Site Admins would need to request printers to be assi
 
 I took this approach so that I could pass an authorized set of credentials that would be able to utilize the Jamf Pro Classic API to be able manage Printers within Jamf Pro.
 
-This is my first project of this type and scale with Python as well as my first use of Qt for Python (PySide2).  I believe I've tried to follow all best practices with PySide2 and have added proper flow control, and threading.  I have also included multi-threading when querying for each printer from Jamf Pro.  In my environment with slightly over 400 printers at the current time, this reduced the lookup period from over 3.5 minutes to under thirty seconds.
+This is my first project of this type and scale with Python as well as my first use of Qt for Python (PySide2).  I believe I've tried to follow all best practices with PySide2 and have added proper flow control and threading.  I have also included multi-threading when querying for each printer from Jamf Pro.  In my environment with slightly over 400 printers at the current time, this reduced the lookup period from over 3.5 minutes to under thirty seconds (on a Mac with twelve cores).
 
-All that said, it's not perfect and I'm sure there are improvements to be had.  Feature Requests and Pull Requests are welcome.
+All that said, it's not perfect and I'm sure there are improvements to be had.
 
+
+## Planned Features / Contributing
+
+Feature Requests and Pull Requests are welcome.  Feel free to contribute!
+
+These are the current items I plan to add based on items I did not implement before releasing and feedback from my Site Admins:
+  * After creating a printer, add to local list
+  * After deleting a printer, remove from local list
+  * Editable Device Details (update without having local printer of same name)
+  * Retry getting a printers' details if the API call fails
+  * ? Client side verbosity/debugging (GUI Enabled) ?
 
 ##  Requirements
 
@@ -38,7 +49,7 @@ Please see the requirements.txt file for additional information.
 
 ## How to setup
 
-Obviously, Python 3 and the above required Libraries will be required on any system that runs this script.  You can deploy a relocatable Python framework to support this.  See Gregg Neagle's Relocatable Framework and the MacAdmins Python for details.
+Obviously, Python 3 and the above required Libraries will be required on any system that runs this script.  You can deploy a relocatable Python framework to support this.  See Greg Neagle's [Relocatable Python Framework](https://github.com/gregneagle/relocatable-python) and the [MacAdmins Python](https://github.com/macadmins/python) for details.
 
 Then you'll need a Jamf Pro Account with CRUD to the Printer Object type.
 
