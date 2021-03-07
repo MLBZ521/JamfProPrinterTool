@@ -28,20 +28,26 @@ All that said, it's not perfect and I'm sure there are improvements to be had.
 
 Feature Requests and Pull Requests are welcome.  Feel free to contribute!
 
-These are the current items I plan to add based on items I did not implement before releasing and feedback from my Site Admins:
-  * After creating a printer, add to local list
-  * After deleting a printer, remove from local list
+These are the current items I plan to add based on functionality I did not implement before releasing and feedback from my Site Admins:
+  * ~After creating a printer, add to local list~
+    * Added!
+  * ~After deleting a printer, remove from local list~
+    * Added!
+  * ~Retry getting a printers' details if the API call fails~
+    * Added!  (I think?  Hard to test this.)
   * Editable Device Details (update without having local printer of same name)
-  * Retry getting a printers' details if the API call fails
   * ? Client side verbosity/debugging (GUI Enabled) ?
 
 ##  Requirements
 
-The script was written using Python 3.8.5, but I believe most Python 3 versions should be supported.
+The latest version of the script was tested using Python 3.9.2, but I believe most Python 3 versions should be supported.
 
 This tool requires the following packages and their dependencies:
   * cryptography
-  * PySide2 (for now v5.14.2.3 was used as several bugs were present in v5.15.x.x)
+  * PySide2
+    * v5.14.2.3 requires `import _tkinter` on macOS 11 Big Sur
+    * v5.15.2 works without issues on macOS 10.14+
+    * PySide6 works with five total edits to the script
   * requests
 
 Please see the requirements.txt file for additional information.
@@ -75,13 +81,13 @@ print("encrypted_password:  {}".format(encrypted_password))
 Simply pass these strings as Script Parameters in a Policy, and you're good to go.
 
 Parameters:
-  * `--api-username | -u API_USERNAME`
-  * `--api-password | -p API_PASSWORD`
-  * `--secret | -s SECRET`
+  * `[ --api-username | -u ] API_USERNAME`
+  * `[ --api-password | -p ] API_PASSWORD`
+  * `[ --secret | -s ] SECRET`
 
 Test locally by:
 
-  * `./PrinterTool.py -s 'encryption_key' -u 'encrypted_username' -p 'encrypted_password'`
+  * `sudo ./PrinterTool.py -s 'encryption_key' -u 'encrypted_username' -p 'encrypted_password'`
 
 
 ## Licensing Information
