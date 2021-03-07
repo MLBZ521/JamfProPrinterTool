@@ -1,4 +1,4 @@
-#!//usr/bin/python3
+#!env python3
 # -*- coding: utf-8 -*-
 
 import argparse
@@ -22,12 +22,16 @@ from xml.sax.saxutils import escape
 
 
 __applicaiton__ = "Jamf Pro Printer Tool"
-__version__ = "v1.0.1"
+__version__ = "v1.1.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "9/3/2020"
+__updated__ = "3/6/2021"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
+
+<p><strong>Source:</strong></p>
+Source code can be found on <a href="https://github.com/MLBZ521/JamfProPrinterTool">GitHub</a>!
+
 
 <p><strong>Contributors:</strong></p>
 
@@ -42,7 +46,7 @@ __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson
 
 
 <p><strong>About Qt</strong></p>
-<p>This program uses Qt version 5.14.2.3</p>
+<p>This program uses Qt version 5.15.2</p>
 
 <p>Qt is a C++ toolkit for cross-platform application development.  Qt is The Qt Company Ltd product developed as an open source project. See <a href="https://qt.io">qt.io</a> for more information.</p>
 
@@ -127,10 +131,10 @@ class Ui_MainWindow(object):
         self.label_create = QtWidgets.QLabel(self.frame_local_printers)
         self.label_create.setGeometry(QtCore.QRect(10, 0, 401, 31))
         self.label_create.setObjectName("label_create")
-        self.button_create = QtWidgets.QPushButton(self.frame_local_printers)
-        self.button_create.setEnabled(False)
-        self.button_create.setGeometry(QtCore.QRect(200, 150, 112, 32))
-        self.button_create.setObjectName("button_create")
+        self.button_create_printers = QtWidgets.QPushButton(self.frame_local_printers)
+        self.button_create_printers.setEnabled(False)
+        self.button_create_printers.setGeometry(QtCore.QRect(200, 150, 112, 32))
+        self.button_create_printers.setObjectName("button_create_printers")
         self.qlist_local_printers = QtWidgets.QListWidget(self.frame_local_printers)
         self.qlist_local_printers.setEnabled(True)
         self.qlist_local_printers.setGeometry(QtCore.QRect(10, 30, 511, 111))
@@ -250,8 +254,8 @@ class Ui_MainWindow(object):
 
         QtWidgets.QWidget.setTabOrder(self.button_get_sites, self.combo_sites)
         QtWidgets.QWidget.setTabOrder(self.combo_sites, self.qlist_local_printers)
-        QtWidgets.QWidget.setTabOrder(self.qlist_local_printers, self.button_create)
-        QtWidgets.QWidget.setTabOrder(self.button_create, self.button_get_printers)
+        QtWidgets.QWidget.setTabOrder(self.qlist_local_printers, self.button_create_printers)
+        QtWidgets.QWidget.setTabOrder(self.button_create_printers, self.button_get_printers)
         QtWidgets.QWidget.setTabOrder(self.button_get_printers, self.combo_printers)
         QtWidgets.QWidget.setTabOrder(self.combo_printers, self.button_update_printer)
         QtWidgets.QWidget.setTabOrder(self.button_update_printer, self.button_delete_printer)
@@ -279,7 +283,7 @@ class Ui_MainWindow(object):
         self.button_update_printer.setText(_translate("MainWindow", "Update Printer"))
         self.button_delete_printer.setText(_translate("MainWindow", "Delete Printer"))
         self.label_create.setText(_translate("MainWindow", "Select the printer you want to use to create or update in Jamf Pro:"))
-        self.button_create.setText(_translate("MainWindow", "Create"))
+        self.button_create_printers.setText(_translate("MainWindow", "Create"))
         self.label_updated_by.setText(_translate("MainWindow", "Updated By"))
         self.label_created_by.setText(_translate("MainWindow", "Created By"))
         self.label_printer_cups_name.setText(_translate("MainWindow", "CUPS Name"))
@@ -420,7 +424,7 @@ class Ui_About(object):
         self.app_name_label.setText(QtCore.QCoreApplication.translate("About", u"<html><head/><body><p><span style=\" font-weight:600;\">Jamf Pro Printer Tool</span></p></body></html>", None))
         self.version_label.setText(QtCore.QCoreApplication.translate("About", u"Version:", None))
         self.version_string_label.setText(QtCore.QCoreApplication.translate("About", __version__, None))
-        self.copyright_label.setText(QtCore.QCoreApplication.translate("About", u"<html><head/><body><p><span style=\" font-size:12pt;\">Copyright \u00a92020 Zack Thompson</span></p></body></html>", None))
+        self.copyright_label.setText(QtCore.QCoreApplication.translate("About", u"<html><head/><body><p><span style=\" font-size:12pt;\">Copyright \u00a92021 Zack Thompson</span></p></body></html>", None))
         self.textBrowser_label.setText(QtCore.QCoreApplication.translate("About", __about__, None))
 
 
@@ -495,12 +499,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # When a printer is selected in the QList of local printers
         self.qlist_local_printers.currentTextChanged.connect(self.displayPrinterDetails)
+        self.qlist_local_printers.currentTextChanged.connect(self.buttonHandler)
 
-        # When a printer is select in the ComboBox of JPS printers
+        # When the Site ComboBox value has changed
+        self.combo_sites.currentTextChanged.connect(self.populatePrinterComboBox)
+        self.combo_sites.currentTextChanged.connect(self.buttonHandler)
+
+        # When a printer is selected in the ComboBox of JPS printers
         self.combo_printers.activated.connect(self.displayPrinterDetails)
+        self.combo_printers.currentTextChanged.connect(self.buttonHandler)
 
         # When the Create Printer button is clicked
-        self.button_create.clicked.connect(self.run_create_printer)
+        self.button_create_printers.clicked.connect(self.run_create_printer)
         # For selecting multiple printers...?
         # self.qlist_local_printers.itemSelectionChanged.connect(self.selectedLocalPrinter)
 
@@ -512,9 +522,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # When the Delete Printer is clicked
         self.button_delete_printer.clicked.connect(self.run_delete_printer)
-
-        # Repopulate the combobox when the Site combobox value has changed
-        self.combo_sites.currentTextChanged.connect(self.populatePrinterComboBox)
 
         # Setup to display login window/login prompt
         self.displayLoginWindow = WorkerSignals()
@@ -612,6 +619,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Stop Progress Bar
         self.progress_bar.setRange(0,1)
 
+        # Update the Printer ComboBox
+        self.populatePrinterComboBox()
+
+        # Update Button State
+        self.buttonHandler()
+
 
     def warning_worker(self, msg):
         """
@@ -622,6 +635,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Stop Progress Bar
         self.progress_bar.setRange(0,1)
+
+        # Update Button State
+        self.buttonHandler()
 
 
     ####################################################################################################
@@ -674,8 +690,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         Handles displaying the Login Window UI
         """
 
-        # print("Prompting for credentials...")
-
         # Update Status Bar and Pulse Progress Bar
         self.update_worker({ "msg": "Provide your Site Admin credentials...", "pb_type": "Pulse" })
 
@@ -697,7 +711,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             Value of the selected item as a str or None
         """
 
-        # print(str(combo_object.currentText()))
         selection = str(combo_object.currentText())
 
         if selection != "":
@@ -716,7 +729,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             Value of the selected item as a str or None
         """
 
-        # print(list_object.currentItem().text())
         try:
             return list_object.currentItem().text()
         except:
@@ -749,7 +761,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         try:
 
             # Get list of printers using the jamf binary
-            results_jamf_list_printer = runUtility( "sudo /usr/local/bin/jamf listprinters" )
+            results_jamf_list_printer = runUtility( "/usr/local/bin/jamf listprinters" )
 
             # Verify success
             if not results_jamf_list_printer['success']:
@@ -774,7 +786,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Get the number of printers and create a counter
         total_printers = len(local_printers.findall('printer'))
-        # print("Total Printers:  {}".format(total_printers))
         local_count = 0
 
         # Update Status Bar and Progress Bar
@@ -886,9 +897,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 # Get Site Access Function
                 self.getSiteAccess(warning_callback)
 
-                # print("Number of Sites:  {}".format(len(self.site_names)))
-                # print("List of Sites:  {}".format(self.site_names))
-
                 if len(self.site_names) > 1:
 
                     # Update Status Bar
@@ -903,7 +911,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     finished_callback.emit("Sites populated")
 
                     # Enable Buttons
-                    self.button_create.setEnabled(True)
                     self.button_get_printers.setEnabled(True)
 
                 else:
@@ -913,7 +920,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 pass
 
         else:
-            # print("User clicked cancel")
+            #  User clicked cancel
             finished_callback.emit("Canceled:  Site Admin credentials not provided")
 
 
@@ -928,7 +935,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         """
 
         # Disable Button so it can't be clicked multiple times
-        self.button_create.setEnabled(False)
+        self.button_create_printers.setEnabled(False)
 
         # Update Status Bar and Pulse Progress Bar
         progress_callback.emit({ "msg": "Creating selected printer in Jamf Pro...", "pb_type": "Pulse" })
@@ -943,9 +950,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Update Status Bar and Progress Bar
             finished_callback.emit("You must select a local printer and Site to create a new printer in Jamf Pro.")
-
-            # Enable Button
-            self.button_create.setEnabled(True)
 
             return
 
@@ -982,7 +986,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     # POST to create a new printer in the JPS.
                     response_create_printer = requests.post(url=api_Resource_Printers_Create, headers=headers, data=payload.encode('utf-8'))
 
-                    if response_create_printer.status_code != 201:
+                    if response_create_printer.status_code == 409:
+
+                        # Update Status Bar and Pulse Progress Bar
+                        warning_callback.emit("ERROR:  Printer name already exists in Jamf Pro")
+                        print("FAILED to create printer due duplicate name")
+
+                    elif response_create_printer.status_code != 201:
 
                         # Update Status Bar and Pulse Progress Bar
                         warning_callback.emit("ERROR:  Failed to create the selected printer in Jamf Pro")
@@ -993,6 +1003,22 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                     else:
 
+                        # Get the Printer ID of the newly created printer
+                        response_create_printer_xml = ElementTree.fromstring(response_create_printer.text)
+                        printer_id = response_create_printer_xml.find('id').text
+
+                        # Set the number of printers and create a counter
+                        self.lookup_count = 0
+                        self.total_jps_printers = 1
+
+                        # Get the newly created printer details so that it can be added to the list
+                        self.worker_thread(partial(self.get_jps_printer_details, printer_id=printer_id))
+
+                        # Wait here for until printer details are collected
+                        self.mutex.lock()
+                        self.condition.wait(self.mutex)
+                        self.mutex.unlock()
+
                         # Update Status Bar and Progress Bar
                         finished_callback.emit("Creating selected printer in Jamf Pro...  [COMPLETE]")
 
@@ -1002,9 +1028,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     warning_callback.emit("Failed to connect to the Jamf Pro Server.")
 
         ##### End Loop
-
-        # Enable Button
-        self.button_create.setEnabled(True)
 
 
     def get_jps_printers(self, progress_callback, finished_callback, warning_callback):
@@ -1019,6 +1042,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Disable Button so it can't be clicked multiple times
         self.button_get_printers.setEnabled(False)
+
+        # Create a fail set
+        self.set_of_printers_that_failed_lookup = set()
 
         # Update Status Bar and Pulse Progress Bar
         progress_callback.emit({ "msg": "Fetching list of all printers in Jamf Pro...", "pb_type": "Pulse" })
@@ -1060,8 +1086,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Get the number of printers and create a counter
         self.total_jps_printers = all_printers.find('size').text
-        # print("Total Printers:  {}".format(self.total_jps_printers))
-
         self.lookup_count = 0
 
         # Update Status Bar and Progress Bar
@@ -1097,13 +1121,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Update the Printer ComboBox
         self.populatePrinterComboBox()
 
+        # Clear the fail list set
+        self.set_of_printers_that_failed_lookup.clear()
+
         # Update Status Bar and Progress Bar
         finished_callback.emit("Fetching printer details...  [COMPLETE]")
 
         # Enable Buttons
         self.button_get_printers.setEnabled(True)
-        self.button_update_printer.setEnabled(True)
-        self.button_delete_printer.setEnabled(True)
 
 
     def get_jps_printer_details(self, progress_callback, finished_callback, warning_callback, printer_id):
@@ -1114,7 +1139,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             progress_callback:  A callback function to update the progress and status bars
             finished_callback:  A callback function to update the progress and status bars
             warning_callback:  A callback function to update the progress and status bars
-            printer_id:  The id of a printer object to lookup in teh JPS
+            printer_id:  The id of a printer object to lookup in the JPS
         """
 
         # Setup API Resource and Headers
@@ -1145,11 +1170,27 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Verify response status code
         if response_get_printer.status_code != 200:
 
-            # Update Status Bar and Pulse Progress Bar
-            progress_callback.emit({ "msg": "ERROR:  Failed to get a printer from Jamf Pro  [0/{}]".format(self.total_jps_printers), "total": self.total_jps_printers, "count": self.lookup_count })
-            print("FAILED to create printer!")
-            print("Status Code:  {}".format(response_get_printer.status_code))
-            print(response_get_printer.text)
+            # Attempt to retry getting the printer again
+            if printer_id not in self.set_of_printers_that_failed_lookup:
+
+                # Add to set so that we only retry once.
+                self.set_of_printers_that_failed_lookup.add(printer_id)
+
+                # Attempt to query the printer again
+                self.worker_thread(partial(self.get_jps_printer_details, printer_id=printer_id))
+
+                # Started a new thread for this printer_id; stopping this thread here
+                return
+
+            else:
+
+                # Update Status Bar and Pulse Progress Bar
+                progress_callback.emit({ "msg": "ERROR:  Failed to get a printer from Jamf Pro  [0/{}]".format(self.total_jps_printers), "total": self.total_jps_printers, "count": self.lookup_count })
+                print("FAILED to create printer!")
+                print("Status Code:  {}".format(response_get_printer.status_code))
+                print(response_get_printer.text)
+
+                return
 
         # Extract XML response
         printer_details = ElementTree.fromstring(response_get_printer.text)
@@ -1236,12 +1277,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Disable Buttons
         self.button_update_printer.setEnabled(False)
+        self.button_delete_printer.setEnabled(False)
 
         # Get the selected items
         selected_site = self.selectedComboBoxValue(self.combo_sites)
         selected_local_printer = self.selectedListValue(self.qlist_local_printers)
         selected_jps_printer = self.selectedComboBoxValue(self.combo_printers)
-        # print("Selected local printer:  {}".format(selected_local_printer))
+
         print("Selected printer to UPDATE '{}' in '{}'".format(selected_jps_printer, selected_site))
 
         # Verify all required items have a selected value
@@ -1249,9 +1291,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Update Status Bar and Pulse Progress Bar
             finished_callback.emit("You must select matching local and jps printers to update the printer in Jamf Pro.")
-
-            # Enable Button
-            self.button_update_printer.setEnabled(True)
 
             return
 
@@ -1267,12 +1306,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Ensure only one printer matched
         if len(local_printer) == len(jps_printer) == 1:
 
-            # Ensure that the display names match on both printer objects
-            if local_printer[0].display_name == jps_printer[0].display_name:
+            # Pull objects out of their list
+            local_printer = local_printer[0]
+            jps_printer = jps_printer[0]
 
-                # Pull objects out of their list
-                local_printer = local_printer[0]
-                jps_printer = jps_printer[0]
+            # Ensure that the display names match on both printer objects
+            if local_printer.display_name == jps_printer.display_name:
 
                 # Build the printer payload xml
                 payload = " \
@@ -1329,9 +1368,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # Update Status Bar and Pulse Progress Bar
             warning_callback.emit("You must select matching local and jps printers to update the printer in Jamf Pro.")
 
-        # Enable Buttons
-        self.button_update_printer.setEnabled(True)
-
 
     def clickedDeletePrinter(self, progress_callback, finished_callback, warning_callback):
         """
@@ -1345,6 +1381,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Disable Buttons
         self.button_delete_printer.setEnabled(False)
+        self.button_update_printer.setEnabled(False)
 
         selected_jps_printer = self.selectedComboBoxValue(self.combo_printers)
         print("Selected printer to DELETE:  '{}'".format(selected_jps_printer))
@@ -1381,6 +1418,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 else:
 
+                    # Remove printer from the list
+                    self.jps_printer_list.remove(jps_printer)
+
                     # Update Status Bar and Progress Bar
                     finished_callback.emit("Delete [{}] in Jamf Pro...  [COMPLETE]".format(selected_jps_printer))
 
@@ -1394,9 +1434,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Update Status Bar and Pulse Progress Bar
             warning_callback.emit("There was a problem finding the required printer details.")
-
-        # Enable Buttons
-        self.button_delete_printer.setEnabled(True)
 
 
     ####################################################################################################
@@ -1433,18 +1470,24 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # Get the object that called this function
             sender = self.sender().objectName()
 
-            # Determine which object to get the selected item in that object
-            if sender == "qlist_local_printers":
+        except:
+            pass
 
-                selected_printer = self.selectedListValue(self.qlist_local_printers)
-                printer_list = self.local_printer_list
+        # Determine which object to get the selected item in that object
+        if sender == "qlist_local_printers":
 
-            elif sender == "combo_printers" or "combo_sites":
+            selected_printer = self.selectedListValue(self.qlist_local_printers)
+            printer_list = self.local_printer_list
 
-                selected_printer = self.selectedComboBoxValue(self.combo_printers)
-                printer_list = self.jps_printer_list
+        elif sender == "combo_printers" or "combo_sites":
 
-            # print("Selected printer:  {}".format(selected_printer))
+            selected_printer = self.selectedComboBoxValue(self.combo_printers)
+            printer_list = self.jps_printer_list
+
+        else:
+            return
+
+        try:
 
             # Loop through the list to get the printers details
             for printer in printer_list:
@@ -1463,8 +1506,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.textEdit_printer_ppd_contents.setText(printer.ppd_contents)
 
         except:
-
-            pass
+            print("Failed to display printer details.")
 
 
     def getSAToken(self, button, sender_parent):
@@ -1582,13 +1624,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def populatePrinterComboBox(self):
         """
-        Handles updating the JPS printer Combobox by repopulates the values when the Site 
+        Handles updating the JPS Printer ComboBox by repopulateing the values when the Site 
         combobox value is changed
         """
 
         try:
 
-            # Ensure the are JPS Printer before continuing.
+            # Ensure there are JPS Printers before continuing.
             if len(self.jps_printer_list) > 0:
 
                 selected_site = self.selectedComboBoxValue(self.combo_sites)
@@ -1607,6 +1649,59 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 # Run the function to update the extended GUI
                 self.displayPrinterDetails()
+
+            else:
+
+                # Clear the ComboBoxes current items
+                self.combo_printers.clear()
+
+        except:
+            pass
+
+
+    def buttonHandler(self):
+        """
+        Handles enabling the Created, Update, and Delete Buttons depending on if local printers
+        exist and when the JPS Printer ComboBox has a non-null selected value
+        """
+
+        # Create Button
+        try:
+                        
+            # Get the selected values
+            selected_site = self.selectedComboBoxValue(self.combo_sites)
+            selected_local_printer = self.selectedListValue(self.qlist_local_printers)
+
+            if selected_site and selected_local_printer:
+
+                # Local printers exist, enabling button
+                self.button_create_printers.setEnabled(True)
+
+            else:
+
+                # Local printers do not exist, disabling button
+                self.button_create_printers.setEnabled(False)
+
+        except:
+            pass
+
+        # Update and Delete Buttons
+        try:
+
+            # Get the current value of the combobox
+            selected_printer = self.selectedComboBoxValue(self.combo_printers)
+
+            if selected_printer:
+
+                # Printer selected, enabling buttons
+                self.button_update_printer.setEnabled(True)
+                self.button_delete_printer.setEnabled(True)
+
+            else:
+
+                # Printer is not selected, disabling buttons
+                self.button_update_printer.setEnabled(False)
+                self.button_delete_printer.setEnabled(False)
 
         except:
             pass
@@ -1703,7 +1798,7 @@ class Printer:
     An object to store printer configuration details in
     """
     # Initializer / Instance Attributes
-    def __init__(self, printer_id="local", ppd_contents = "", site = "", created_by = "", updated_by = "", **kwargs):
+    def __init__(self, printer_id = "local", ppd_contents = "", site = "", created_by = "", updated_by = "", **kwargs):
         self.printer_id = printer_id
         self.display_name = kwargs['display_name']
         self.cups_name = kwargs['cups_name']
@@ -1791,7 +1886,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="This script defines a GUI application to create printers within Jamf Pro.  It requires a Jamf Pro account with CRUD permissions to the Printer Object Type.")
     parser.add_argument('--api-username', '-u', help='Provide the encrypted string for the API Username', required=True)
     parser.add_argument('--api-password', '-p', help='Provide the encrypted string for the API Password', required=True)
-    parser.add_argument('--secret', '-s', help='Provide the encrypted secrete', required=True)
+    parser.add_argument('--secret', '-s', help='Provide the encrypted secret', required=True)
     args, unknown = parser.parse_known_args(parser_args)
 
     # Verify the proper arguments were passed
