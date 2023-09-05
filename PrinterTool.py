@@ -24,10 +24,10 @@ from xml.sax.saxutils import escape
 
 
 __applicaiton__ = "Jamf Pro Printer Tool"
-__version__ = "v1.1.1"
+__version__ = "v1.2.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "11/30/2020"
+__updated__ = "7/12/2023"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
 
@@ -1573,12 +1573,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             warning_callback:  A callback function to update the progress and status bars
         """
 
-        site_ids = []
-        self.site_names = []
-        self.site_names.append("") # Add an empty value to the beginning
+        # site_ids = []
+        self.site_names = [""] # Add an empty value to the beginning
+        sites_unauthorized = (
+            "Site A",
+            "Site 2",
+            "Site C3"
+        )
 
         try:
-
             # Setup API Resource and Headers
             url = "{}/uapi/auth".format(self.jps_url)
             headers = { "Authorization": "jamf-token {}".format(self.api_token_results['api_token']) }
@@ -1587,32 +1590,33 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             response_user_details = requests.get( url, headers=headers )
 
         except:
-
             # Update Status Bar and Pulse Progress Bar
             warning_callback.emit("ERROR:  Failed to connect to the Jamf Pro Server.")
-
             return
 
         try:
-
             # Get the response content from the API
             user_details = response_user_details.json()
 
-            for key in user_details["accountGroups"]:
+            # Old method to limit Sites
+            # Uncomment the below lines if you'd want to use this method
+            # for key in user_details["accountGroups"]:
+                # for privilege in key["privileges"]:
+                #     if privilege == "Enroll Computers and Mobile Devices":
+                # site_ids.append(key["siteId"])
 
-                for privilege in key["privileges"]:
+            # for key in user_details['sites']:
+            #     if key['id'] in site_ids:
+            #         self.site_names.append(key['name'])
 
-                    if privilege == "Enroll Computers and Mobile Devices":
-
-                        site_ids.append(key["siteId"])
-
-            for key in user_details['sites']:
-
-                if key['id'] in site_ids:
-                    self.site_names.append(key['name'])
+            # New method to limit Sites
+            self.site_names.extend(
+                key["name"]
+                for key in user_details["sites"]
+                if key["name"] not in sites_unauthorized
+            )
 
         except:
-
             pass
 
 
