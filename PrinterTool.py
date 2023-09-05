@@ -14,6 +14,8 @@ import sys
 import time
 import traceback
 
+import _tkinter
+
 from cryptography.fernet import Fernet
 from functools import partial
 from PySide2 import QtCore, QtGui, QtWidgets
@@ -22,10 +24,10 @@ from xml.sax.saxutils import escape
 
 
 __applicaiton__ = "Jamf Pro Printer Tool"
-__version__ = "v1.1.0"
+__version__ = "v1.1.1"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "3/6/2021"
+__updated__ = "11/30/2020"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
 
