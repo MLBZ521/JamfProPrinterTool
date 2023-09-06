@@ -24,10 +24,10 @@ from xml.sax.saxutils import escape
 
 
 __applicaiton__ = "Jamf Pro Printer Tool"
-__version__ = "v1.2.0"
+__version__ = "v1.2.1"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "7/12/2023"
+__updated__ = "9/5/2023"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
 
@@ -1481,7 +1481,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             selected_printer = self.selectedListValue(self.qlist_local_printers)
             printer_list = self.local_printer_list
 
-        elif sender == "combo_printers" or "combo_sites":
+        elif sender in ( "combo_printers", "combo_sites" ):
 
             selected_printer = self.selectedComboBoxValue(self.combo_printers)
             printer_list = self.jps_printer_list
