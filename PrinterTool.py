@@ -26,7 +26,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.3.0"
+__version__ = "v1.3.1"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
 __updated__ = "9/25/2023"
@@ -649,8 +649,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		self.close_window()
 
 
-	def close_worker(self):
-
 	def update_worker(self, notification):
 		"""
 		Callback function to updated the progress and status bars
@@ -940,9 +938,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			self.displayLoginWindow.prompt.emit()
 
 			# Wait here
-			self.mutex.lock()
-			self.condition.wait(self.mutex)
-			self.mutex.unlock()
+			self.lock_mutex(True)
 
 		# Update Status Bar
 		progress_callback.emit({ "msg": "Requesting API Token..." })
@@ -1099,9 +1095,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 							self.get_jps_printer_details, printer_id=printer_id))
 
 						# Wait here for until printer details are collected
-						self.mutex.lock()
-						self.condition.wait(self.mutex)
-						self.mutex.unlock()
+						self.lock_mutex(True)
 
 						# Update Status Bar and Progress Bar
 						finished_callback.emit(
@@ -1203,9 +1197,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		##### Loop complete
 
 		# Wait here for all printers to be collected
-		self.mutex.lock()
-		self.condition.wait(self.mutex)
-		self.mutex.unlock()
+		self.lock_mutex(True)
 
 		# Update the Printer ComboBox
 		self.populate_printer_combo_box()
@@ -1861,6 +1853,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		except Exception:
 			pass
+
+
+	def lock_mutex(self, lock_it):
+
+		if lock_it:
+			print("Locking mutex")
+			self.mutex.lock()
+			print("Waiting for mutex")
+			self.condition.wait(self.mutex)
+
+		print("Unlocking mutex")
+		self.mutex.unlock()
 
 
 ####################################################################################################
