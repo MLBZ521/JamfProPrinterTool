@@ -26,10 +26,10 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.2.2"
+__version__ = "v1.2.3"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "9/6/2023"
+__updated__ = "9/25/2023"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site \
                     Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
@@ -589,23 +589,30 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def run_get_local_printers(self):
         self.worker_thread(self.get_local_printers)
 
+
     def run_get_site_access(self):
         self.worker_thread(self.clicked_get_sites)
+
 
     def run_create_printer(self):
         self.worker_thread(self.clicked_create_printer)
 
+
     def run_get_jps_printers(self):
         self.worker_thread(self.get_jps_printers)
+
 
     def run_update_printer(self):
         self.worker_thread(self.clicked_update_printer)
 
+
     def run_delete_printer(self):
         self.worker_thread(self.clicked_delete_printer)
 
+
     def run_get_jps_printer_details(self, id_printer):
         self.worker_thread(partial(self.get_jps_printer_details, printer_id=id_printer))
+
 
     def worker_thread(self, function):
         """
@@ -623,10 +630,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.worker.stopped = False
         self.threadpool.start(self.worker)
 
+
     def shutdown(self):
         """
         Called with the application is closed
         """
+
         print("Shutting Down!")
 
         background_threads = self.threadpool.activeThreadCount()
@@ -816,10 +825,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         try:
 
             # Get list of printers using the jamf binary
-            results_jamf_list_printer = run_utility( "/usr/local/bin/jamf listprinters" )
+            results_jamf_list_printer = run_utility("/usr/local/bin/jamf listprinters")
 
             # Verify success
-            if not results_jamf_list_printer["success"]:
+            if not results_jamf_list_printer.get("success"):
                 raise RuntimeError("Jamf binary failed to report installed printers")
 
         except Exception:
@@ -827,10 +836,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             # Update Status Bar and Pulse Progress Bar
             warning_callback.emit("Error:  Failed to collect the locally installed printers")
             print("ERROR:  Failed to collect the locally install printers")
-            print(results_jamf_list_printer["stderr"])
+            print(results_jamf_list_printer.get("stderr"))
 
         # Remove new lines
-        results_jamf_list_printer = re.sub("\n", "", str(results_jamf_list_printer["stdout"]))
+        results_jamf_list_printer = re.sub("\n", "", str(results_jamf_list_printer.get("stdout")))
 
         # Parse the xml
         local_printers = ElementTree.fromstring(results_jamf_list_printer)
@@ -914,7 +923,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         try:
 
             # Get current epoch time to compare
-            if time.time() > self.api_token_results["api_token_expires"] :
+            if time.time() > self.api_token_results.get("api_token_expires"):
                 # API Token Expired
                 self.get_site_admin_token()
 
@@ -941,14 +950,14 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             try:
                 # Verify success
-                if self.api_token_results["error"]:
+                if self.api_token_results.get("error"):
 
                     # Update Status Bar and Pulse Progress Bar
                     warning_callback.emit(
                         "ERROR:  Failed to authenticate the provided credentials!")
                     print("ERROR:  Failed to authenticate Site Admin Credentials!")
-                    print(f"ERROR:  Return Code {self.api_token_results['status']}")
-                    print(self.api_token_results["error"])
+                    print(f"ERROR:  Return Code {self.api_token_results.get('status')}")
+                    print(self.api_token_results.get("error"))
                     return
 
                 # Update Status Bar
@@ -1318,7 +1327,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # Site Admin has Enroll Permissions to, add it to a list.
         if site in self.site_names:
 
-            # Create Printer
+            # Create Printer Object
             printer_object = Printer( 
                 printer_id = printer_details.find("id").text, 
                 display_name = printer_details.find("name").text, 
@@ -1584,7 +1593,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             with open(jamf_plist, "rb") as jamf_plist:
 
                 jamf_plist_contents = plistlib.load(jamf_plist)
-                self.jps_url = jamf_plist_contents["jss_url"]
+                self.jps_url = jamf_plist_contents.get("jss_url")
                 print(f"Jamf Pro Server URL:  {self.jps_url}")
 
         else:
@@ -1734,20 +1743,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
             # Old method to limit Sites
             # Uncomment the below lines if you'd want to use this method
-            # for key in user_details["accountGroups"]:
-                # for privilege in key["privileges"]:
+            # for key in user_details.get("accountGroups"):
+                # for privilege in key.get("privileges"):
                 #     if privilege == "Enroll Computers and Mobile Devices":
-                # site_ids.append(key["siteId"])
+                # site_ids.append(key.get("siteId"))
 
-            # for key in user_details["sites"]:
-            #     if key["id"] in site_ids:
-            #         self.site_names.append(key["name"])
+            # for key in user_details.get("sites"):
+            #     if key.get("id") in site_ids:
+            #         self.site_names.append(key.get("name"))
 
             # New method to limit Sites
             self.site_names.extend(
-                key["name"]
-                for key in user_details["sites"]
-                if key["name"] not in sites_unauthorized
+                key.get("name")
+                for key in user_details.get("sites")
+                if key.get("name") not in sites_unauthorized
             )
 
         except Exception:
@@ -1912,6 +1921,7 @@ class Worker(QtCore.QRunnable):
         self.kwargs["finished_callback"] = self.signals.finished
         self.kwargs["warning_callback"] = self.signals.warning
 
+
     @QtCore.Slot()
     def run(self):
         """
@@ -1919,6 +1929,7 @@ class Worker(QtCore.QRunnable):
         """
 
         # Retrieve args/kwargs here; and fire processing using them
+
         try:
 
             result = self.function(*self.args, **self.kwargs)
@@ -1946,19 +1957,21 @@ class Printer:
         self, printer_id="local", ppd_contents="", site="", created_by="", updated_by="", **kwargs
     ):
         self.printer_id = printer_id
-        self.display_name = kwargs["display_name"]
-        self.cups_name = kwargs["cups_name"]
-        self.model = kwargs["model"]
-        self.location = kwargs["location"]
-        self.device_uri = kwargs["device_uri"]
-        self.ppd_path = kwargs["ppd_path"]
+        self.display_name = kwargs.get("display_name")
+        self.cups_name = kwargs.get("cups_name")
+        self.model = kwargs.get("model")
+        self.location = kwargs.get("location")
+        self.device_uri = kwargs.get("device_uri")
+        self.ppd_path = kwargs.get("ppd_path")
         self.ppd_contents = ppd_contents
         self.site = site
         self.created_by = created_by
         self.updated_by = updated_by
 
+
     def __repr__(self):
         return str(self.display_name)
+
 
     def __str__(self):
         return str(self.display_name)
