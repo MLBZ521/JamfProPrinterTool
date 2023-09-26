@@ -26,7 +26,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.4.0"
+__version__ = "v1.5.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
 __updated__ = "9/26/2023"
@@ -1053,27 +1053,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			if printer.display_name == selected_local_printer:
 
 				# Build the printer payload xml
-				payload = f" \
-					<printer> \
-					<name>{printer.display_name}</name> \
-					<category>Printers</category> \
-					<uri>{printer.device_uri}</uri> \
-					<CUPS_name>{printer.cups_name}</CUPS_name> \
-					<location>{printer.location}</location> \
-					<model>{printer.model}</model> \
-					<ppd>{printer.cups_name}.ppd</ppd> \
-					<ppd_contents>{escape(printer.ppd_contents)}</ppd_contents> \
-					<notes>{{ \"Site\": \"{selected_site}\", \"Created_by\": \
-						\"{self.sa_username}\", \"Updated_by\": \"\"}}</notes> \
-					<ppd_path>{printer.ppd_path}</ppd_path> \
-					</printer>"
-
-				# Setup API Resource and Headers
-				api_Resource_Printers_Create = f"{self.jps_url}JSSResource/printers/id/0"
-				headers = {
-					"Content-Type": "application/xml", "Authorization": f"Basic {jps_credentials}"}
-
-				try:
+				payload = self.build_printer_xml_payload(
+					display_name = printer.display_name,
+					device_uri = printer.device_uri,
+					cups_name = printer.cups_name,
+					location = printer.location,
+					model = printer.model,
+					ppd_contents = printer.ppd_contents,
+					ppd_path = printer.ppd_path,
+					site = selected_site,
+					created = get_timestamp(),
+					created_by = self.site_admin_account.get("username")
+				)
 
 				# POST to create a new printer in the JPS.
 				response_create_printer = self.jamf_pro_api(
@@ -1306,22 +1297,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		try:
 			embedded_json = json.loads(printer_details.find("notes").text)
 		except Exception:
-			pass
+			embedded_json = {}
 
-		try:
-			site = embedded_json["Site"]
-		except Exception:
-			site = "unassigned"
-
-		try:
-			created_by = embedded_json["Created_by"]
-		except Exception:
-			created_by = "unknown"
-
-		try:
-			updated_by = embedded_json["Updated_by"]
-		except Exception:
-			updated_by = "unknown"
+		site = embedded_json.get("Site", "unassigned")
+		created = embedded_json.get("Created", "unknown")
+		created_by = embedded_json.get("Created_by", "unknown")
+		updated = embedded_json.get("Updated", "unknown")
+		updated_by = embedded_json.get("Updated_by", "unknown")
 
 		# Debugging
 		# print("ID:  "  + printer_details.find("id").text)
@@ -1332,7 +1314,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		# print("Model:  " + printer_details.find("model").text)
 		# print("Notes:  " + printer_details.find("notes").text)
 		# print("Site:  " + site)
+		# print("Created:  " + created)
 		# print("Created By:  " + created_by)
+		# print("Updated:  " + updated)
 		# print("Updated By:  " + updated_by)
 
 		# If the Printer's "assigned Site" is in the list of Sites the 
@@ -1340,18 +1324,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		if site in self.site_names:
 
 			# Create Printer Object
-			printer_object = Printer( 
-				printer_id = printer_details.find("id").text, 
-				display_name = printer_details.find("name").text, 
-				cups_name = printer_details.find("CUPS_name").text, 
-				location = printer_details.find("location").text, 
-				device_uri = printer_details.find("uri").text, 
-				model = printer_details.find("model").text, 
-				ppd_path = printer_details.find("ppd").text, 
-				ppd_contents = printer_details.find("ppd_contents").text, 
-				site = site, 
-				created_by = created_by, 
-				updated_by = updated_by )
+			printer_object = Printer(
+				printer_id = printer_details.find("id").text,
+				display_name = printer_details.find("name").text,
+				cups_name = printer_details.find("CUPS_name").text,
+				location = printer_details.find("location").text,
+				device_uri = printer_details.find("uri").text,
+				model = printer_details.find("model").text,
+				ppd_path = printer_details.find("ppd").text,
+				ppd_contents = printer_details.find("ppd_contents").text,
+				site = site,
+				created = created,
+				created_by = created_by,
+				updated = updated,
+				updated_by = updated_by
+			)
 
 			# Add printer to list
 			self.jps_printer_list.append(printer_object)
@@ -1437,32 +1424,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			if local_printer.display_name == jps_printer.display_name:
 
 				# Build the printer payload xml
-				payload = f" \
-					<printer> \
-					<id>{jps_printer.printer_id}</id> \
-					<name>{local_printer.display_name}</name> \
-					<category>Printers</category> \
-					<uri>{local_printer.device_uri}</uri> \
-					<CUPS_name>{selected_site}</CUPS_name> \
-					<location>{local_printer.location}</location> \
-					<model>{local_printer.model}</model> \
-					<ppd>{local_printer.cups_name}.ppd</ppd> \
-					<ppd_contents>{escape(local_printer.ppd_contents)}</ppd_contents> \
-					<notes>{{ \"Site\": \"{selected_site}\", \"Created_by\": \
-						\"{jps_printer.created_by}\", \"Updated_by\": \
-						\"{self.sa_username}\"}}</notes> \
-					<ppd_path>{local_printer.ppd_path}</ppd_path> \
-					</printer>"
-
-				# Setup API Resource and Headers
-				api_Resource_Printers_Update = f"{self.jps_url}\
-					JSSResource/printers/id/{jps_printer.printer_id}"
-				headers = { 
-					"Content-Type": "application/xml", 
-					"Authorization": f"Basic {jps_credentials}" 
-				}
-
-				try:
+				payload = self.build_printer_xml_payload(
+					id = jps_printer.printer_id,
+					display_name = local_printer.display_name,
+					device_uri = local_printer.device_uri,
+					cups_name = local_printer.cups_name,
+					location = local_printer.location,
+					model = local_printer.model,
+					ppd_contents = local_printer.ppd_contents,
+					ppd_path = local_printer.ppd_path,
+					site = selected_site,
+					created = jps_printer.created,
+					created_by = jps_printer.created_by,
+					updated = get_timestamp(),
+					updated_by = self.site_admin_account.get("username")
+				)
 
 				# PUT to update a new printer in the JPS.
 				response_update_printer = self.jamf_pro_api(
@@ -2004,6 +1980,66 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		self.mutex.unlock()
 
 
+	def build_printer_xml_payload(self, **kwargs):
+		"""Helper function to build an XML payload that
+		can be used as a payload for the Jamf Pro API.
+
+		Returns:
+			str: XML formatted string
+		"""
+
+		custom_notes = self.create_custom_printer_notes(
+			kwargs.get("site"),
+			kwargs.get("created"),
+			kwargs.get("created_by"),
+			kwargs.get("updated"),
+			kwargs.get("updated_by")
+		)
+
+		# Build the printer payload xml
+		return (
+			"<printer>"
+				f"<id>{kwargs.get('id', '')}</id>"
+				f"<name>{kwargs.get('display_name')}</name>"
+				f"<category>Printers</category>"
+				f"<uri>{kwargs.get('device_uri')}</uri>"
+				f"<CUPS_name>{kwargs.get('cups_name')}</CUPS_name>"
+				f"<location>{kwargs.get('location')}</location>"
+				f"<model>{kwargs.get('model')}</model>"
+				f"<ppd>{kwargs.get('cups_name')}.ppd</ppd>"
+				f"<ppd_contents>{escape(kwargs.get('ppd_contents'))}</ppd_contents>"
+				f"{custom_notes}"
+				f"<ppd_path>{kwargs.get('ppd_path')}</ppd_path>"
+			"</printer>"
+		)
+
+
+	def create_custom_printer_notes(self, site: str, created: str = "", created_by: str = "",
+		updated: str = "", updated_by: str = ""):
+		"""A helper function to create the embedded json notes.
+
+		Args:
+			site (str): Site the printer is assigned
+			created (str, optional): Datetime of printer creation. Defaults to "".
+			created_by (str, optional): Admin that created the printer. Defaults to "".
+			updated (str, optional): Datetime the printer was updated. Defaults to "".
+			updated_by (str, optional): Admin that updated the printer. Defaults to "".
+
+		Returns:
+			str: String quoted JSON blob
+		"""
+
+		custom_notes = {
+			"Site": site,
+			"Created": created,
+			"Created_by": created_by,
+			"Updated": updated,
+			"Updated_by": updated_by
+		}
+
+		return f"<notes>{json.dumps(custom_notes)}</notes>"
+
+
 ####################################################################################################
 # Classes
 
@@ -2096,10 +2132,11 @@ class Printer:
 	"""
 	An object to store printer configuration details in
 	"""
+
 	# Initializer / Instance Attributes
-	def __init__(
-		self, printer_id="local", ppd_contents="", site="", created_by="", updated_by="", **kwargs
-	):
+	def __init__(self, printer_id="local", ppd_contents="", site="", created="", created_by="",
+		updated="", updated_by="", **kwargs):
+
 		self.printer_id = printer_id
 		self.display_name = kwargs.get("display_name")
 		self.cups_name = kwargs.get("cups_name")
@@ -2109,7 +2146,9 @@ class Printer:
 		self.ppd_path = kwargs.get("ppd_path")
 		self.ppd_contents = ppd_contents
 		self.site = site
+		self.created = created
 		self.created_by = created_by
+		self.updated = updated
 		self.updated_by = updated_by
 
 
@@ -2176,6 +2215,20 @@ def decrypt_string(key, encrypted_string):
 	decrypted_string = f.decrypt(encrypted_string.encode())
 
 	return decrypted_string.decode()
+
+
+def get_timestamp(date: datetime = datetime.now(), format_string: str = "%Y-%m-%d %I:%M:%S"):
+	"""Helper function to generate a datetime string.
+
+	Args:
+		date (datetime, optional): A datetime object to convert to a string. Defaults to datetime.now().
+		format_string (str, optional): Format to convert the datetime object to. Defaults to "%Y-%m-%d %I:%M:%S".
+
+	Returns:
+		str: A string formatted datetime object
+	"""
+
+	return datetime.fromisoformat(str(date)).strftime(format_string)
 
 
 if __name__ == "__main__":
