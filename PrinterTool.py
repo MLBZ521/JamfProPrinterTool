@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import base64
 import json
 import os
 import plistlib
@@ -15,6 +14,7 @@ import traceback
 
 import _tkinter
 
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape
@@ -26,10 +26,10 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.3.1"
+__version__ = "v1.4.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "9/25/2023"
+__updated__ = "9/26/2023"
 __description__ = "This script utilizes the PySide2 Library (Qt) to generate a GUI that Site \
 					Admins can use to manage their own printers within Jamf Pro."
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
@@ -84,6 +84,17 @@ Source code can be found on <a href="https://github.com/MLBZ521/JamfProPrinterTo
 	DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, \
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
 </body></html>"""
+
+
+CLASSIC_API_ENDPOINTS = {
+	"printers": "JSSResource/printers",
+	"printers_by_id": "JSSResource/printers/id"
+}
+
+PRO_API_ENDPOINTS = {
+	"auth_details": "api/v1/auth",
+	"auth_token": "api/v1/auth/token"
+}
 
 
 class Ui_MainWindow(object):
@@ -582,6 +593,12 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		self.displayLoginWindow = WorkerSignals()
 		self.displayLoginWindow.prompt.connect(self.login_prompt)
 
+		# Privileged API Account
+		self.jps_privileged_api_account = {
+			"username": JPS_API_USER,
+			"password": JPS_API_PASSWORD
+		}
+
 		# Flag that can be set to stop all current events/threads
 		self.full_stop = False
 
@@ -923,13 +940,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		try:
 
 			# Get current epoch time to compare
-			if time.time() > self.api_token_results.get("api_token_expires"):
+			if time.time() > self.site_admin_account.get("api_token_expires"):
 				# API Token Expired
-				self.get_site_admin_token()
+				# self.get_site_admin_token()
+				self.site_admin_account |= self.get_token(
+					username = self.site_admin_account.get("username"),
+					password = self.site_admin_account.get("password")
+				)
 
-			# else:
+			else:
 				# API Token is still valid
-				# print("Already have a valid API Token")
+				print("Current API Token is valid")
 
 		except Exception:
 
@@ -947,15 +968,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		if self.loginWindow_button == "OK":
 
 			try:
+
 				# Verify success
-				if self.api_token_results.get("error"):
+				if self.site_admin_account.get("error"):
 
 					# Update Status Bar and Pulse Progress Bar
-					warning_callback.emit(
-						"ERROR:  Failed to authenticate the provided credentials!")
-					print("ERROR:  Failed to authenticate Site Admin Credentials!")
-					print(f"ERROR:  Return Code {self.api_token_results.get('status')}")
-					print(self.api_token_results.get("error"))
+					warning_callback.emit(self.site_admin_account.get("error"))
+					print(self.site_admin_account.get("error"))
 					return
 
 				# Update Status Bar
@@ -1056,55 +1075,53 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 				try:
 
-					# POST to create a new printer in the JPS.
-					response_create_printer = requests.post(
-						url = api_Resource_Printers_Create,
-						headers = headers,
-						data = payload.encode("utf-8")
-					)
+				# POST to create a new printer in the JPS.
+				response_create_printer = self.jamf_pro_api(
+					api_account = self.jps_privileged_api_account,
+					method = "post",
+					endpoint = f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}/0",
+					receive_content_type = "xml",
+					data = payload.encode("utf-8"),
+					warning_callback = warning_callback
+				)
 
-					if response_create_printer.status_code == 409:
+				if response_create_printer.status_code == 409:
 
-						# Update Status Bar and Pulse Progress Bar
-						warning_callback.emit("ERROR:  Printer name already exists in Jamf Pro")
-						print("FAILED to create printer due duplicate name")
+					# Update Status Bar and Pulse Progress Bar
+					warning_callback.emit("ERROR:  Printer name already exists in Jamf Pro")
+					print("FAILED to create printer due duplicate name")
 
-					elif response_create_printer.status_code != 201:
+				elif response_create_printer.status_code != 201:
 
-						# Update Status Bar and Pulse Progress Bar
-						warning_callback.emit(
-							"ERROR:  Failed to create the selected printer in Jamf Pro")
-						print("FAILED to create printer!")
-						print(f"Status Code:  {response_create_printer.status_code}")
-						print(f"URI:  {api_Resource_Printers_Create}")
-						print(response_create_printer.text)
+					# Update Status Bar and Pulse Progress Bar
+					warning_callback.emit(
+						"ERROR:  Failed to create the selected printer in Jamf Pro")
+					print("FAILED to create printer!")
+					print(f"Status Code:  {response_create_printer.status_code}")
+					print(f"URI:  {CLASSIC_API_ENDPOINTS.get('printers_by_id')}/0")
+					print(response_create_printer.text)
 
-					else:
+				else:
 
-						# Get the Printer ID of the newly created printer
-						response_create_printer_xml = ElementTree.fromstring(
-							response_create_printer.text)
-						printer_id = response_create_printer_xml.find("id").text
+					# Get the Printer ID of the newly created printer
+					response_create_printer_xml = ElementTree.fromstring(
+						response_create_printer.text)
+					printer_id = response_create_printer_xml.find("id").text
 
-						# Set the number of printers and create a counter
-						self.lookup_count = 0
-						self.total_jps_printers = 1
+					# Set the number of printers and create a counter
+					self.lookup_count = 0
+					self.total_jps_printers = 1
 
-						# Get the newly created printer details so that it can be added to the list
-						self.worker_thread(partial(
-							self.get_jps_printer_details, printer_id=printer_id))
+					# Get the newly created printer details so that it can be added to the list
+					self.worker_thread(partial(
+						self.get_jps_printer_details, printer_id=printer_id))
 
-						# Wait here for until printer details are collected
-						self.lock_mutex(True)
-
-						# Update Status Bar and Progress Bar
-						finished_callback.emit(
-							"Creating selected printer in Jamf Pro...  [COMPLETE]")
-
-				except Exception:
+					# Wait here for until printer details are collected
+					self.lock_mutex(True)
 
 					# Update Status Bar and Progress Bar
-					warning_callback.emit("Failed to connect to the Jamf Pro Server.")
+					finished_callback.emit(
+						"Creating selected printer in Jamf Pro...  [COMPLETE]")
 
 		##### End Loop
 
@@ -1131,13 +1148,17 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			"pb_type": "Pulse" 
 		})
 
-		# Setup API Resource and Headers
-		api_Resource_Printers = f"{self.jps_url}JSSResource/printers"
-		headers = {"Accept": "application/xml", "Authorization": f"Basic {jps_credentials}"}
 
 		try:
+
 			# GET all printers from the JPS
-			response_get_all_printers = requests.get(url=api_Resource_Printers, headers=headers)
+			response_get_all_printers = self.jamf_pro_api(
+				api_account = self.jps_privileged_api_account,
+				endpoint = CLASSIC_API_ENDPOINTS.get("printers"),
+				method = "get",
+				receive_content_type = "xml",
+				warning_callback = warning_callback
+			)
 
 			# Verify response status code
 			if response_get_all_printers.status_code != 200:
@@ -1154,9 +1175,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 				return
 
 		except Exception:
-
-			# Update Status Bar and Pulse Progress Bar
-			warning_callback.emit("Failed to connect to the Jamf Pro Server.")
 
 			# Enable Buttons
 			self.button_get_printers.setEnabled(True)
@@ -1228,19 +1246,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		if self.full_stop:
 			return
 
-		# Setup API Resource and Headers
-		api_Resource_Printer_ID = f"{self.jps_url}JSSResource/printers/id/{printer_id}"
-		headers = { "Accept": "application/xml", "Authorization": f"Basic {jps_credentials}" }
-
 		try:
 
 			# GET printer details from the JPS
-			response_get_printer = requests.get(url=api_Resource_Printer_ID, headers=headers)
+			response_get_printer = self.jamf_pro_api(
+				api_account = self.jps_privileged_api_account,
+				method = "get",
+				endpoint = f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}/{printer_id}",
+				receive_content_type = "xml",
+				warning_callback = warning_callback
+			)
 
 		except Exception:
-
-			# Update Status Bar and Pulse Progress Bar
-			warning_callback.emit("Failed to connect to the Jamf Pro Server.")
 
 			# Increment counter
 			self.lookup_count = self.lookup_count + 1
@@ -1447,31 +1464,35 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 				try:
 
-					# PUT to update a new printer in the JPS.
-					response_update_printer = requests.put(
-						url = api_Resource_Printers_Update, 
-						headers = headers, data = payload.encode("utf-8")
-					)
+				# PUT to update a new printer in the JPS.
+				response_update_printer = self.jamf_pro_api(
+					api_account = self.jps_privileged_api_account,
+					method = "put",
+					endpoint = f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}\
+						/{jps_printer.printer_id}",
+					send_content_type = "xml",
+					data = payload.encode("utf-8"),
+					warning_callback = warning_callback
+				)
 
-					if response_update_printer.status_code != 201:
+				if response_update_printer.status_code != 201:
 
-						# Update Status Bar and Pulse Progress Bar
-						warning_callback.emit(
-							f"ERROR:  Failed to update [{selected_jps_printer}] in Jamf Pro")
-						print("ERROR:  Failed to update printer!")
-						print(f"Status Code:  {response_update_printer.status_code}")
-						print(f"URI:  {api_Resource_Printers_Update}")
-						print(response_update_printer.text)
-
-					else:
-						# Update Status Bar and Progress Bar
-						finished_callback.emit(
-							f"Updating [{selected_jps_printer}] in Jamf Pro...  [COMPLETE]"
-						)
-
-				except Exception:
 					# Update Status Bar and Pulse Progress Bar
-					warning_callback.emit("Failed to connect to the Jamf Pro Server.")
+					warning_callback.emit(
+						f"ERROR:  Failed to update [{selected_jps_printer}] in Jamf Pro")
+					print("ERROR:  Failed to update printer!")
+					print(f"Status Code:  {response_update_printer.status_code}")
+					print(
+						f"URI:  '{CLASSIC_API_ENDPOINTS.get('printers_by_id')}"
+						f"/{jps_printer.printer_id}'"
+					)
+					print(response_update_printer.text)
+
+				else:
+					# Update Status Bar and Progress Bar
+					finished_callback.emit(
+						f"Updating [{selected_jps_printer}] in Jamf Pro...  [COMPLETE]"
+					)
 
 			else:
 				# Update Status Bar and Pulse Progress Bar
@@ -1524,51 +1545,41 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			# Pull object out of its list
 			jps_printer = jps_printer[0]
 
-			# Setup API Resource and Headers
-			api_Resource_Printers_Delete = f"{self.jps_url}\
-				JSSResource/printers/id/{jps_printer.printer_id}"
-			headers = { 
-				"Content-Type": "application/xml", 
-				"Authorization": f"Basic {jps_credentials}" 
-			}
+			# Delete printer in the JPS.
+			response_delete_printer = self.jamf_pro_api(
+				api_account = self.jps_privileged_api_account,
+				method = "delete",
+				endpoint = f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}\
+					/{jps_printer.printer_id}",
+				warning_callback = warning_callback
+			)
 
-			try:
-
-				# PUT to update a new printer in the JPS.
-				response_delete_printer = requests.delete(
-					url = api_Resource_Printers_Delete, 
-					headers = headers
-				)
-
-				if response_delete_printer.status_code != 200:
-
-					# Update Status Bar and Pulse Progress Bar
-					warning_callback.emit(
-						f"ERROR:  Failed to delete [{selected_jps_printer}] in Jamf Pro")
-					print("FAILED to delete printer!")
-					print(f"Status Code:  {response_delete_printer.status_code}")
-					print(f"URI:  {api_Resource_Printers_Delete}")
-					print(response_delete_printer.text)
-
-				else:
-
-					# Remove printer from the list
-					self.jps_printer_list.remove(jps_printer)
-
-					# Update Status Bar and Progress Bar
-					finished_callback.emit(
-						f"Delete [{selected_jps_printer}] in Jamf Pro...  [COMPLETE]")
-
-			except Exception:
+			if response_delete_printer.status_code != 200:
 
 				# Update Status Bar and Pulse Progress Bar
-				warning_callback.emit("Failed to connect to the Jamf Pro Server.")
+				warning_callback.emit(
+					f"ERROR:  Failed to delete [{selected_jps_printer}] in Jamf Pro")
+				print("FAILED to delete printer!")
+				print(f"Status Code:  {response_delete_printer.status_code}")
+				print(
+					f"URI:  '{CLASSIC_API_ENDPOINTS.get('printers_by_id')}"
+					f"/{jps_printer.printer_id}'"
+				)
+				print(response_delete_printer.text)
 
-				return
+			else:
+
+				# Remove printer from the list
+				self.jps_printer_list.remove(jps_printer)
+
+				# Update Status Bar and Progress Bar
+				finished_callback.emit(
+					f"Delete [{selected_jps_printer}] in Jamf Pro...  [COMPLETE]")
+
 		else:
 
 			# Update Status Bar and Pulse Progress Bar
-			warning_callback.emit("There was a problem finding the required printer details.")
+			warning_callback.emit("There was a problem identifying the printer.")
 
 
 	################################################################################################
@@ -1594,6 +1605,145 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		else:
 			print("ERROR:  Missing the Jamf Pro configuration file!")
 			sys.exit(1)
+
+
+	def jamf_pro_api(self, api_account: dict, method: str, endpoint: str,
+		receive_content_type: str = "json", send_content_type = "xml",
+		data: str | dict | None = None, **kwargs):
+		"""Helper function to interact with the Jamf Pro API(s).
+
+		Args:
+			api_account (dict): Dict contain the username and password to use
+				when interacting with the Jamf Pro API.
+			method (str): HTTP Method that should be used.
+			endpoint (str): The API's endpoint URL
+			receive_content_type (str, optional): The content type to request the API to
+				respond with. Defaults to "json".
+			send_content_type (str, optional): The content type that will be sent to the API.
+				Defaults to "xml".
+			data (str | dict | None, optional): A data payload that will be sent to the API.
+				Defaults to None.
+
+		Returns:
+			requests.response: A request.response object
+		"""
+
+		warning_callback = kwargs.get("warning_callback")
+
+		if (
+			not api_account.get("api_token") or
+			self.is_token_expired(api_account.get("api_token_expires"))
+		):
+			api_account |= self.get_token(
+				api_account.get("username"),
+				api_account.get("password"),
+				warning_callback=warning_callback
+			)
+
+		# Setup API URL and Headers
+		url = f"{self.jps_url}{endpoint}"
+		headers = {
+			"Authorization": f"jamf-token {api_account.get('api_token')}",
+			"Accept": f"application/{receive_content_type}",
+			"Content-Type": f"application/{send_content_type}"
+		}
+
+		try:
+
+			if method == "get":
+
+				return requests.get(url=url, headers=headers)
+
+			elif method == "post" | "create":
+
+				return requests.post(
+					url = url,
+					headers = headers,
+					data = data
+				)
+
+			elif method == "put" | "update":
+
+				return requests.put(
+					url = url,
+					headers = headers,
+					data = data
+				)
+
+			elif method == "delete":
+
+				return requests.delete(
+					url = url,
+					headers = headers
+				)
+
+		except Exception:
+
+			warning_callback.emit("ERROR:  Failed to connect to the Jamf Pro Server.")
+
+
+	def get_token(self, username: str, password: str):
+		"""A helper function use to obtain a Jamf Pro API Token.
+
+		Args:
+			username (str): Username for a Jamf Pro account
+			password (str): Password for a Jamf Pro account
+
+		Returns:
+			dict: Results of the API Token request
+		"""
+
+		try:
+
+			# Create a token based on user provided credentials
+			response_get_token = requests.post(
+				url = f"{self.jps_url}/{PRO_API_ENDPOINTS.get('auth_token')}",
+				auth = (username, password)
+			)
+
+			if response_get_token.status_code == 200:
+				return {
+					"api_token": response_get_token.json().get("token"),
+					"api_token_expires": self.fixup_token_expiration(
+						response_get_token.json().get("expires"))
+				}
+
+			return { "error": "ERROR:  Failed to authenticate with the Jamf Pro Server." }
+
+		except Exception:
+			return { "error": "ERROR:  Failed to connect to the Jamf Pro Server." }
+
+
+	def fixup_token_expiration(self, token_expires: str):
+		"""Makes the API Token's expiration date into a Python complaint value.
+
+		Args:
+			token_expires (str): A datetime string
+
+		Returns:
+			datetime: A datetime string
+		"""
+
+		return datetime.fromisoformat(
+			token_expires.rsplit(".", maxsplit=1)[0]
+		).replace(tzinfo=timezone.utc)
+
+
+	def is_token_expired(self, token_expires: datetime):
+		"""Checks if the current API Token has expired.
+
+		Args:
+			token_expires (str): A datetime object
+
+		Returns:
+			bool: Whether or not the API Token has expired
+		"""
+
+		if datetime.now(timezone.utc) > (token_expires - timedelta(minutes=5)):
+			print("API Token has expired!")
+			return True
+
+		return False
 
 
 	def display_printer_details(self):
@@ -1656,46 +1806,29 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		if self.loginWindow_button == "OK":
 
-			# Save credentials
-			self.sa_username = sender_parent.lineEdit_username.text()
-			self.sa_password = sender_parent.lineEdit_password.text()
+			# Store the Site Admin Account
+			self.site_admin_account = {
+				"username": sender_parent.lineEdit_username.text(),
+				"password": sender_parent.lineEdit_password.text()
+			}
 
-			if len( self.sa_username ) and len( self.sa_password ) != 0:
+			if (
+				len(self.site_admin_account.get("username")) != 0
+				and len(self.site_admin_account.get("password")) != 0
+			):
 
-				try:
-					# Create a token based on user provided credentials
-					response_get_token = requests.post(
-						url = f"{self.jps_url}/uapi/auth/tokens", 
-						auth = (self.sa_username, self.sa_password)
-					)
-
-					# API Token for the Site Admin
-					self.api_token_results = {
-						"success": True if response_get_token.status_code == 200 else False,
-						"error":  response_get_token.text() if 
-							response_get_token.status_code != 200 else None,
-						"status": response_get_token.status_code,
-						"api_token": response_get_token.json()["token"] if 
-							response_get_token.status_code == 200 else None,
-						"api_token_expires": response_get_token.json()["expires"] if 
-							response_get_token.status_code == 200 else None
-					}
-
-				except Exception:
-					self.api_token_results = {
-						"success": False,
-						"error":  "Failed to connect to the Jamf Pro Server.",
-						"status": "404",
-						"api_token": None,
-						"api_token_expires": None
-					}
+				# Create a token based on user provided credentials
+				self.site_admin_account |= self.get_token(
+					username = self.site_admin_account.get("username"),
+					password = self.site_admin_account.get("password")
+				)
 
 				# Close the Login Window QDialog Window
 				sender_parent.close()
 
-				# else:
-					# print("Credentials were not supplied")
-					# Future plans:  create cue that credentials were not provided
+			else:
+				print("Credentials were not supplied")
+				# Future plans:  create cue that credentials were not provided
 
 		elif self.loginWindow_button == "Cancel":
 
@@ -1711,6 +1844,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			warning_callback:  A callback function to update the progress and status bars
 		"""
 
+		print("Getting Site Access")
+
 		# site_ids = []
 		self.site_names = [""] # Add an empty value to the beginning
 		sites_unauthorized = (
@@ -1719,20 +1854,22 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			"Site C3"
 		)
 
-		try:
-			# Setup API Resource and Headers
-			url = f"{self.jps_url}/uapi/auth"
-			headers = { "Authorization": f"jamf-token {self.api_token_results['api_token']}" }
+		# GET All User Details
+		response_user_details = self.jamf_pro_api(
+			api_account = self.site_admin_account,
+			method = "get",
+			endpoint = PRO_API_ENDPOINTS.get("auth_details"),
+			warning_callback = warning_callback
+		)
 
-			# GET All User Details
-			response_user_details = requests.get( url, headers=headers )
+		if response_user_details.status_code != 200:
 
-		except Exception:
 			# Update Status Bar and Pulse Progress Bar
-			warning_callback.emit("ERROR:  Failed to connect to the Jamf Pro Server.")
+			warning_callback.emit("ERROR:  Failed to look up user details.")
 			return
 
 		try:
+
 			# Get the response content from the API
 			user_details = response_user_details.json()
 
@@ -1763,7 +1900,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		Handles clearing the API Token when the Clear API Token Action is selected
 		"""
 
-		self.api_token_results = ""
+		self.site_admin_account.update({ "api_token": None, "api_token_expires": None })
 
 
 	def populate_printer_combo_box(self):
@@ -2074,10 +2211,8 @@ if __name__ == "__main__":
 	# Verify the proper arguments were passed
 	if args.api_username and args.api_password and args.secret:
 
-		jps_api_user = decrypt_string(args.secret.strip(), args.api_username.strip()).strip()
-		jps_api_password = decrypt_string(args.secret.strip(), args.api_password.strip()).strip()
-		jps_credentials = (
-			base64.b64encode( f"{jps_api_user}:{jps_api_password}".encode() ) ).decode()
+		JPS_API_USER = decrypt_string(args.secret.strip(), args.api_username.strip()).strip()
+		JPS_API_PASSWORD = decrypt_string(args.secret.strip(), args.api_password.strip()).strip()
 
 	else:
 
