@@ -26,7 +26,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.2.4"
+__version__ = "v1.3.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
 __updated__ = "9/25/2023"
@@ -538,7 +538,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		##### Setup actions, buttons, triggers, etc
 
 		# When the Exit Action is triggered
-		self.actionExit.triggered.connect(self.close_window)
+		self.actionExit.triggered.connect(self.shutdown)
 
 		# When the About Action is triggered
 		self.actionAbout.triggered.connect(self.show_about)
@@ -582,6 +582,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		self.displayLoginWindow = WorkerSignals()
 		self.displayLoginWindow.prompt.connect(self.login_prompt)
 
+		# Flag that can be set to stop all current events/threads
+		self.full_stop = False
 
 	################################################################################################
 	# Threading Functions
@@ -627,7 +629,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		self.worker.signals.finished.connect(self.finished_worker)
 		self.worker.signals.progress.connect(self.update_worker)
 		self.worker.signals.warning.connect(self.warning_worker)
-		self.worker.stopped = False
 		self.threadpool.start(self.worker)
 
 
@@ -637,17 +638,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		"""
 
 		print("Shutting Down!")
+		self.full_stop = True
 
-		background_threads = self.threadpool.activeThreadCount()
-
-		if background_threads > 0:
+		if background_threads := self.threadpool.activeThreadCount() > 0:
 			print(f"Background threads running:  {background_threads}")
+			print("waiting background threads to end...")
+			self.threadpool.waitForDone(1000)
+			self.condition.wakeAll()
 
-			if self.worker:
-				print("Terminating background threads...")
-				self.worker.stopped = True
-				self.threadpool.waitForDone(1000)
+		self.close_window()
 
+
+	def close_worker(self):
 
 	def update_worker(self, notification):
 		"""
@@ -1187,13 +1189,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		# Loop through each printer
 		for printer in all_printers.findall(".//printer"):
 
-			# Check if the worker should be stopped stopped
-			if self.worker.stopped == True:
-				print("Exiting from loop")
-
-				# Enable Buttons
+			# Check if the worker should be stopped
+			if self.full_stop:
+				# Re-enable Button
 				self.button_get_printers.setEnabled(True)
-
 				return
 
 			# Get the Printer ID
@@ -1232,6 +1231,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			warning_callback:  A callback function to update the progress and status bars
 			printer_id:  The id of a printer object to lookup in the JPS
 		"""
+
+		# Check if the worker should be stopped
+		if self.full_stop:
+			return
 
 		# Setup API Resource and Headers
 		api_Resource_Printer_ID = f"{self.jps_url}JSSResource/printers/id/{printer_id}"
