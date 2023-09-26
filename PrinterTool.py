@@ -26,7 +26,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.5.0"
+__version__ = "v1.5.1"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
 __updated__ = "9/26/2023"
@@ -657,7 +657,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		print("Shutting Down!")
 		self.full_stop = True
 
-		if background_threads := self.threadpool.activeThreadCount() > 0:
+		if (background_threads := self.threadpool.activeThreadCount()) > 0:
 			print(f"Background threads running:  {background_threads}")
 			print("waiting background threads to end...")
 			self.threadpool.waitForDone(1000)
