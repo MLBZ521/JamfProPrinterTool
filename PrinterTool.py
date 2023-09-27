@@ -26,10 +26,10 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.5.1"
+__version__ = "v1.5.3"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "9/26/2023"
+__updated__ = "9/27/2023"
 __description__ = ("This script utilizes the PySide2 Library (Qt) to generate a GUI that Site "
 					"Admins can use to manage their own printers within Jamf Pro.")
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
@@ -592,6 +592,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		# Setup to display login window/login prompt
 		self.displayLoginWindow = WorkerSignals()
 		self.displayLoginWindow.prompt.connect(self.login_prompt)
+		self.selected_login_window_button = None
 
 		# Privileged API Account
 		self.jps_privileged_api_account = {
@@ -809,7 +810,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		try:
 			return list_object.currentItem().text()
-		except Exception:
+		except AttributeError:
 			return None
 
 		# For selecting multiple printers...?
@@ -914,8 +915,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 			# Update Status Bar and Progress Bar
 			progress_callback.emit({
-				"msg": f"Found printer:  {printer_object.display_name}  \
-					[{local_count}/{total_printers}]",
+				"msg": (
+					f"Found printer:  {printer_object.display_name} "
+					f"[{local_count}/{total_printers}]"
+				),
 				"total": total_printers,
 				"count": local_count
 			})
@@ -939,10 +942,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		# If credentials were already supplied, don't prompt again.
 		try:
 
-			# Get current epoch time to compare
-			if time.time() > self.site_admin_account.get("api_token_expires"):
+			# Verify API Token exists and it has not expired
+			if (
+				not self.site_admin_account.get("api_token") or
+				self.is_token_expired(self.site_admin_account.get("api_token_expires"))
+			):
+
 				# API Token Expired
-				# self.get_site_admin_token()
 				self.site_admin_account |= self.get_token(
 					username = self.site_admin_account.get("username"),
 					password = self.site_admin_account.get("password")
@@ -961,11 +967,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			# Wait here
 			self.lock_mutex(True)
 
-		# Update Status Bar
-		progress_callback.emit({ "msg": "Requesting API Token..." })
-
 		# Check which button was clicked
-		if self.loginWindow_button == "OK":
+		if self.selected_login_window_button == "OK":
+
+			# Update Status Bar
+			progress_callback.emit({ "msg": "Requesting API Token..." })
 
 			try:
 
@@ -1129,6 +1135,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		# Disable Button so it can't be clicked multiple times
 		self.button_get_printers.setEnabled(False)
+		self.button_get_sites.setEnabled(False)
 
 		# Create a fail set
 		self.set_of_printers_that_failed_lookup = set()
@@ -1138,7 +1145,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			"msg": "Fetching list of all printers in Jamf Pro...",
 			"pb_type": "Pulse"
 		})
-
 
 		try:
 
@@ -1196,6 +1202,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			if self.full_stop:
 				# Re-enable Button
 				self.button_get_printers.setEnabled(True)
+				self.button_get_sites.setEnabled(True)
 				return
 
 			# Get the Printer ID
@@ -1219,6 +1226,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		# Enable Buttons
 		self.button_get_printers.setEnabled(True)
+		self.button_get_sites.setEnabled(True)
 
 
 	def get_jps_printer_details(
@@ -1279,8 +1287,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 				# Update Status Bar and Pulse Progress Bar
 				progress_callback.emit({
-					"msg": f"ERROR:  Failed to get a printer from \
-						Jamf Pro  [0/{self.total_jps_printers}]",
+					"msg": (
+						f"ERROR:  Failed to get a printer from "
+						f"Jamf Pro  [0/{self.total_jps_printers}]"
+					),
 					"total": self.total_jps_printers,
 					"count": self.lookup_count
 				})
@@ -1386,8 +1396,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 			# Update Status Bar and Pulse Progress Bar
 			finished_callback.emit(
-				"You must select matching local and jps printers \
-					to update the printer in Jamf Pro."
+				"You must select the matching local and JPS "
+				"printers to update the printer in Jamf Pro."
 			)
 
 			return
@@ -1406,7 +1416,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		]
 
 		# Loop through the local printers to find the one that
-		# matches the jps printer that was selected to be updated
+		# matches the JPS printer that was selected to be updated
 		local_printer = [
 			printer
 			for printer in self.local_printer_list
@@ -1467,21 +1477,20 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 				else:
 					# Update Status Bar and Progress Bar
 					finished_callback.emit(
-						f"Updating [{selected_jps_printer}] in Jamf Pro...  [COMPLETE]"
-					)
+						f"Updating [{selected_jps_printer}] in Jamf Pro...  [COMPLETE]")
 
 			else:
 				# Update Status Bar and Pulse Progress Bar
 				warning_callback.emit(
-					"You must select matching local and jps printers \
-						to update the printer in Jamf Pro."
+					"You must select matching local and JPS printers "
+					"to update the printer in Jamf Pro."
 				)
 
 		else:
 			# Update Status Bar and Pulse Progress Bar
 			warning_callback.emit(
-				"You must select matching local and jps printers \
-					to update the printer in Jamf Pro."
+				"You must select matching local and JPS "
+				"printers to update the printer in Jamf Pro."
 			)
 
 
@@ -1612,8 +1621,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		):
 			api_account |= self.get_token(
 				api_account.get("username"),
-				api_account.get("password"),
-				warning_callback=warning_callback
+				api_account.get("password")
 			)
 
 		# Setup API URL and Headers
@@ -1778,9 +1786,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		"""
 
 		# Get the object that called this function
-		self.loginWindow_button = button.text()
+		self.selected_login_window_button = button.text()
 
-		if self.loginWindow_button == "OK":
+		if self.selected_login_window_button == "OK":
 
 			# Store the Site Admin Account
 			self.site_admin_account = {
@@ -1806,7 +1814,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 				print("Credentials were not supplied")
 				# Future plans:  create cue that credentials were not provided
 
-		elif self.loginWindow_button == "Cancel":
+		elif self.selected_login_window_button == "Cancel":
 
 			# Close the Login Window QDialog Window
 			sender_parent.close()
@@ -1922,7 +1930,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 	def button_handler(self):
 		"""
-		Handles enabling the Created, Update, and Delete Buttons depending on if local printers
+		Handles enabling the Create, Update, and Delete Buttons depending on if local printers
 		exist and when the JPS Printer ComboBox has a non-null selected value
 		"""
 
