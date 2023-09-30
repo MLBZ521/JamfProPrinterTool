@@ -7,8 +7,6 @@ import logging
 import os
 import plistlib
 import re
-import shlex
-import subprocess
 import sys
 import time
 import traceback
@@ -914,8 +912,11 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		try:
 
-			# Get list of printers using the jamf binary
-			results_jamf_list_printer = run_utility("/usr/local/bin/jamf listprinters")
+			with ExecuteProcess(
+				program = "/usr/local/bin/jamf", 
+				args = ["listprinters"]
+			) as _list_printers:
+				results_jamf_list_printer = _list_printers
 
 			# Verify success
 			if not results_jamf_list_printer.get("success"):
@@ -2231,45 +2232,77 @@ class Printer:
 		return str(self.display_name)
 
 
+class ExecuteProcess:
+	"""
+	A class that allows running an external program and returning the results.
+
+	Can also be used as a Context Manager."""
+
+	def __init__(self, program: str, args: list, **kwargs):
+
+		self.program = program
+		self.args = args
+		log.debug(f"Executing external program `{self.program}` with the parameters `{self.args}`")
+
+		self.execute = QtCore.QProcess()
+		self.execute.readyReadStandardOutput.connect(self.handle_stdout)
+		self.execute.readyReadStandardError.connect(self.handle_stderr)
+		self.execute.stateChanged.connect(self.handle_state)
+		self.execute.finished.connect(self.process_finished)  # Clean up once complete.
+		self.results_stdout = ""
+		self.results_stderr = ""
+
+
+	def __enter__(self):
+		"""Context Manager method to start execution of external program
+
+		Returns:
+			dict:  A dictionary of results
+		"""
+
+		self.execute.start(self.program, self.args)
+		self.execute.waitForFinished()
+
+		return {
+			"status": self.execute.exitCode(),
+			"stderr": (self.results_stderr).strip() if self.results_stderr != "" else None,
+			"stdout": (self.results_stdout).strip(),
+			"success": self.execute.exitCode() == 0
+		}
+
+	def __exit__(self, exc_type, exc_value, exc_traceback):
+		"""Context Manager method to handle exiting."""
+
+		self.process_finished()
+
+
+	def handle_stderr(self):
+		data = self.execute.readAllStandardError()
+		stderr = bytes(data).decode("utf8")
+		self.results_stderr = f"{self.results_stderr}{stderr}"
+
+
+	def handle_stdout(self):
+		data = self.execute.readAllStandardOutput()
+		stdout = bytes(data).decode("utf8")
+		self.results_stdout = f"{self.results_stdout}{stdout}"
+
+
+	def handle_state(self, state):
+		states = {
+			QtCore.QProcess.NotRunning: 'Not running',
+			QtCore.QProcess.Starting: 'Starting',
+			QtCore.QProcess.Running: 'Running',
+		}
+		state_name = states[state]
+
+
+	def process_finished(self):
+		pass
+
+
 ####################################################################################################
 # Utility Helpers
-
-def run_utility(command):
-	"""
-	A helper function for subprocess.
-
-	Args:
-		command (str):  The command line level syntax that would be
-						written in shell or a terminal window.
-	Returns:
-		Results in a dictionary.
-	"""
-
-	# Validate that command is not a string
-	if not isinstance(command, str):
-		raise TypeError("Command must be a str type")
-
-	# Format the command
-	command = shlex.split(command)
-
-	# Run the command
-	process = subprocess.Popen(
-		command,
-		stdout = subprocess.PIPE,
-		stderr = subprocess.PIPE,
-		shell = False,
-		universal_newlines = True
-	)
-
-	(stdout, stderr) = process.communicate()
-
-	return {
-		"stdout": (stdout).strip(),
-		"stderr": (stderr).strip() if stderr != None else None,
-		"status": process.returncode,
-		"success": True if process.returncode == 0 else False
-	}
-
 
 def decrypt_string(key, encrypted_string):
 	"""
