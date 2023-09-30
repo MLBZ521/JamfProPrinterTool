@@ -27,10 +27,10 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.6.0"
+__version__ = "v1.7.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "9/27/2023"
+__updated__ = "9/29/2023"
 __description__ = ("This script utilizes the PySide2 Library (Qt) to generate a GUI that Site "
 					"Admins can use to manage their own printers within Jamf Pro.")
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
@@ -535,18 +535,60 @@ class LoginWindow(QtWidgets.QDialog, Ui_LoginWindow):
 		self.parent = parent
 
 		##### Setup actions, buttons, triggers, etc
-		self.buttonOK.clicked.connect(lambda: self.parent.get_site_admin_token(self.buttonOK, self))
-		self.buttonCancel.clicked.connect(
-			lambda: self.parent.get_site_admin_token(self.buttonCancel, self))
+		self.buttonOK.clicked.connect(self.ok_button)
+		self.buttonCancel.clicked.connect(self.cancel_button)
 
 		# Setup to close the login window/login prompt
 		self.closeLoginWindow = WorkerSignals()
 		self.closeLoginWindow.close.connect(self.close_window)
 
+		# Setup action for Key Press
+		QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.on_escape)
+
+
+	@QtCore.Slot()
+	def on_escape(self):
+		"""
+		Handles when the escape key is pressed
+		"""
+
+		log.debug("User escaped the dialog window")
+		self.close()
+
+
+	def ok_button(self):
+		"""
+		Handles 'OK' button press
+		"""
+
+		if (
+			len(( username := self.lineEdit_username.text() )) != 0 and 
+			len(( password := self.lineEdit_password.text() )) != 0
+		):
+			# Store the Site Admin Account
+			self.parent.site_admin_account = { "username": username, "password": password }
+
+			self.close_window()
+
+		else:
+			# Future plans:  create cue that credentials were not provided
+			log.debug("Credentials were not supplied")
+
+
+	def cancel_button(self):
+		"""
+		Handles 'Cancel' button press
+		"""
+
+		log.debug("User clicked cancel")
+		self.close_window()
+
+
 	def close_window(self):
 		"""
 		Handles closing the window
 		"""
+
 		self.close()
 
 
@@ -620,7 +662,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		# Setup to display login window/login prompt
 		self.displayLoginWindow = WorkerSignals()
 		self.displayLoginWindow.prompt.connect(self.login_prompt)
-		self.selected_login_window_button = None
+
+		# Site Admin Account
+		self.site_admin_account = {}
 
 		# Privileged API Account
 		self.jps_privileged_api_account = {
@@ -971,85 +1015,68 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		log.debug("Getting Sites...")
 
-		# If credentials were already supplied, don't prompt again.
-		try:
+		if not (
+			self.site_admin_account.get("username") and self.site_admin_account.get("password")
+		):
+			# If credentials were already supplied, don't prompt again.
+			log.debug("Prompting for credentials...")
 
-			# Verify API Token exists and it has not expired
-			if (
-				not self.site_admin_account.get("api_token") or
-				self.is_token_expired(self.site_admin_account.get("api_token_expires"))
-			):
-
-				# API Token Expired
-				self.site_admin_account |= self.get_token(
-					username = self.site_admin_account.get("username"),
-					password = self.site_admin_account.get("password")
-				)
-
-			else:
-				# API Token is still valid
-				log.debug("Current API Token is valid")
-
-		except Exception:
-
-			# No API Token
 			# Calls self.login_prompt() to display the Ui_LoginWindow QDialog box
 			self.displayLoginWindow.prompt.emit()
 
 			# Wait here
 			self.lock_mutex(True)
 
-		# Check which button was clicked
-		if self.selected_login_window_button == "OK":
-
-			# Update Status Bar
-			progress_callback.emit({ "msg": "Requesting API Token..." })
-
-			try:
-
-				# Verify success
-				if self.site_admin_account.get("error"):
-
-					# Update Status Bar and Pulse Progress Bar
-					warning_callback.emit(self.site_admin_account.get("error"))
-					log.error(self.site_admin_account.get("error"))
-					return
-
-				# Update Status Bar
-				progress_callback.emit({ "msg": "Requesting API Token...  [SUCCESS]" })
-
-				# Update Status Bar
-				progress_callback.emit({ "msg": "Collecting Site Access Permissions..." })
-
-				# Get Site Access Function
-				self.get_site_access(warning_callback)
-
-				if len(self.site_names) > 1:
-
-					# Update Status Bar
-					progress_callback.emit({
-						"msg": "Collecting Site Access Permissions...  [SUCCESS]" })
-
-					# Enable the Site ComboBox, clear it,and add the Site names
-					self.combo_sites.setEnabled(True)
-					self.combo_sites.clear()
-					self.combo_sites.addItems(sorted(self.site_names))
-
-					# Update Status Bar and Progress Bar
-					finished_callback.emit("Sites populated")
-
-					# Enable Buttons
-					self.button_get_printers.setEnabled(True)
-
-				else:
-					return
-
-			except Exception:
-				pass
+		if self.site_admin_account.get("username"):
+			log.info(f"Jamf Pro Admin:  {self.site_admin_account.get('username')}")
 
 		else:
 			#  User clicked cancel
 			finished_callback.emit("Canceled:  Site Admin credentials not provided")
+			return
+
+		if (
+			not self.site_admin_account.get("api_token") or
+			self.is_token_expired(self.site_admin_account.get("api_token_expires"))
+		):
+			# Verify API Token exists and it has not expired
+			log.debug("No API Token or it has expired, acquiring new token...")
+
+			# Update Status Bar
+			progress_callback.emit({ "msg": "Requesting API Token..." })
+
+			self.site_admin_account |= self.get_token(
+				username = self.site_admin_account.get("username"),
+				password = self.site_admin_account.get("password")
+			)
+
+			# Verify success
+			if self.site_admin_account.get("error"):
+
+				# Update Status Bar and Pulse Progress Bar
+				warning_callback.emit(self.site_admin_account.get("error"))
+				log.error(self.site_admin_account.get("error"))
+
+				# Clear invalid credentials
+				self.site_admin_account |= {
+					"username": "",
+					"password": "",
+					"error": ""
+				}
+
+				# Update Status Bar
+				finished_callback.emit("Requesting API Token...  [FAILED]")
+				return
+
+			# Update Status Bar
+			finished_callback.emit("Requesting API Token...  [SUCCESS]")
+
+		else:
+			# API Token is still valid
+			log.debug("Current API Token is valid")
+
+		# Get Site Access Function
+		self.get_site_access(progress_callback, finished_callback, warning_callback)
 
 
 	def clicked_create_printer(self, progress_callback, finished_callback, warning_callback):
@@ -1820,52 +1847,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			log.error("Failed to display printer details.")
 
 
-	def get_site_admin_token(self, button, sender_parent):
-		"""
-		A helper function that acquires an API Token data for the submitted credentials.
-
-		Args:
-			sender_parent:  The parent object that called this function
-		"""
-
-		# Get the object that called this function
-		self.selected_login_window_button = button.text()
-
-		if self.selected_login_window_button == "OK":
-
-			# Store the Site Admin Account
-			self.site_admin_account = {
-				"username": sender_parent.lineEdit_username.text(),
-				"password": sender_parent.lineEdit_password.text()
-			}
-
-			if (
-				len(self.site_admin_account.get("username")) != 0
-				and len(self.site_admin_account.get("password")) != 0
-			):
-
-				# Create a token based on user provided credentials
-				self.site_admin_account |= self.get_token(
-					username = self.site_admin_account.get("username"),
-					password = self.site_admin_account.get("password")
-				)
-
-				log.info(f"Jamf Pro Admin:  {self.site_admin_account.get('username')}")
-
-				# Close the Login Window QDialog Window
-				sender_parent.close()
-
-			else:
-				log.debug("Credentials were not supplied")
-				# Future plans:  create cue that credentials were not provided
-
-		elif self.selected_login_window_button == "Cancel":
-
-			# Close the Login Window QDialog Window
-			sender_parent.close()
-
-
-	def get_site_access(self, warning_callback):
+	def get_site_access(self, progress_callback, finished_callback, warning_callback):
 		"""
 		A helper function that retrieves the Sites an account has Enroll Permissions too.
 
@@ -1874,6 +1856,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 		"""
 
 		log.debug("Getting users' Site access...")
+
+		# Update Status Bar
+		progress_callback.emit({ "msg": "Collecting Site Access Permissions..." })
 
 		# site_ids = []
 		self.site_names = [""] # Add an empty value to the beginning
@@ -1924,7 +1909,32 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			log.debug(f"Authorized Sites:  {self.site_names}")
 
 		except Exception:
-			pass
+			# Update Status Bar and Progress Bar
+			warning_callback.emit("Failed to identify authorized Sites!")
+			log.error("Failed to identify any authorized Sites!")
+			return
+
+		if len(self.site_names) > 1:
+
+			# Update Status Bar
+			progress_callback.emit({ "msg": "Collecting Site Access Permissions...  [SUCCESS]" })
+
+			# Enable the Site ComboBox, clear it,and add the Site names
+			self.combo_sites.setEnabled(True)
+			self.combo_sites.clear()
+			self.combo_sites.addItems(sorted(self.site_names))
+
+			# Update Status Bar and Progress Bar
+			finished_callback.emit("Sites populated")
+
+			# Enable Buttons
+			self.button_get_printers.setEnabled(True)
+
+		else:
+			# Update Status Bar and Progress Bar
+			warning_callback.emit("User is not authorized for any Sites.")
+			log.warning("User is not authorized for any Sites.")
+			return
 
 
 	def clear_api_token(self):
