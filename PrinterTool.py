@@ -8,13 +8,13 @@ import os
 import plistlib
 import re
 import sys
-import time
 import traceback
 
 import _tkinter
 
 from datetime import datetime, timedelta, timezone
 from functools import partial
+from typing import Union
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape
 
@@ -25,10 +25,10 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.7.0"
+__version__ = "v1.8.1"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "9/29/2023"
+__updated__ = "10/3/2023"
 __description__ = ("This script utilizes the PySide2 Library (Qt) to generate a GUI that Site "
 					"Admins can use to manage their own printers within Jamf Pro.")
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
@@ -135,7 +135,7 @@ class Ui_MainWindow(object):
 		MainWindow.setTabShape(QtWidgets.QTabWidget.Rounded)
 		MainWindow.setDockNestingEnabled(False)
 		MainWindow.setDockOptions(
-			QtWidgets.QMainWindow.AllowTabbedDocks|QtWidgets.QMainWindow.AnimatedDocks)
+			QtWidgets.QMainWindow.AllowTabbedDocks | QtWidgets.QMainWindow.AnimatedDocks)
 		MainWindow.setUnifiedTitleAndToolBarOnMac(False)
 		self.centralwidget = QtWidgets.QWidget(MainWindow)
 		self.centralwidget.setObjectName("centralwidget")
@@ -438,15 +438,19 @@ class Ui_LoginWindow(object):
 		LoginWindow.setWindowTitle(_translate("LoginWindow", "Login"))
 		self.label_description.setText(_translate(
 			"LoginWindow",
-			"<html><head/><body><p><span style=\" font-weight:600;\">\
-				Enter your Site Admin credentials.</span></p></body></html>"
+			(
+				"<html><head/><body><p><span style=\"font-weight:600;\">"
+				"Enter your Site Admin credentials.</span></p></body></html>"
+			)
 		))
 		self.label_username.setText(_translate("LoginWindow", "Username:  "))
 		self.label_password.setText(_translate("LoginWindow", "Password:  "))
 		self.label_heading.setText(_translate(
 			"LoginWindow",
-			"<html><head/><body><p>To determine which Sites you \
-				manage, please authenticate.</p></body></html>"
+			(
+				"<html><head/><body><p>To determine which Sites you "
+				"manage, please authenticate.</p></body></html>"
+			)
 		))
 		self.buttonOK.setText(_translate("LoginWindow", "OK"))
 		self.buttonCancel.setText(_translate("LoginWindow", "Cancel"))
@@ -500,8 +504,10 @@ class Ui_About(object):
 		self.logo.setText("")
 		self.app_name_label.setText(QtCore.QCoreApplication.translate(
 			"About",
-			u"<html><head/><body><p><span style=\" font-weight:600;\">\
-				Jamf Pro Printer Tool</span></p></body></html>",
+			(
+				u"<html><head/><body><p><span style=\"font-weight:600;\">"
+				"Jamf Pro Printer Tool</span></p></body></html>"
+			),
 			None
 			))
 		self.version_label.setText(QtCore.QCoreApplication.translate("About", u"Version:", None))
@@ -512,8 +518,10 @@ class Ui_About(object):
 		))
 		self.copyright_label.setText(QtCore.QCoreApplication.translate(
 			"About",
-			u"<html><head/><body><p><span style=\" font-size:12pt;\">\
-				Copyright \u00a92021 Zack Thompson</span></p></body></html>",
+			(
+				u"<html><head/><body><p><span style=\"font-size:12pt;\">"
+				"Copyright \u00a92023 Zack Thompson</span></p></body></html>"
+			),
 			None
 		))
 		self.textBrowser_label.setText(QtCore.QCoreApplication.translate("About", __about__, None))
@@ -560,7 +568,7 @@ class LoginWindow(QtWidgets.QDialog, Ui_LoginWindow):
 		"""
 
 		if (
-			len(( username := self.lineEdit_username.text() )) != 0 and 
+			len(( username := self.lineEdit_username.text() )) != 0 and
 			len(( password := self.lineEdit_password.text() )) != 0
 		):
 			# Store the Site Admin Account
@@ -730,7 +738,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		if (background_threads := self.threadpool.activeThreadCount()) > 0:
 			log.debug(f"Background threads running:  {background_threads}")
-			log.debug("waiting background threads to end...")
+			log.debug("Waiting for background threads to end...")
 			self.threadpool.waitForDone(1000)
 			self.condition.wakeAll()
 
@@ -926,8 +934,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 			# Update Status Bar and Pulse Progress Bar
 			warning_callback.emit("Error:  Failed to collect the locally installed printers")
-			log.error(f"Failed to collect the locally install printers:\n\
-				{results_jamf_list_printer.get('stderr')}")
+			log.error((
+				f"Failed to collect the locally install printers:\n"
+				f"{results_jamf_list_printer.get('stderr')}"
+			))
 
 		# Remove new lines
 		results_jamf_list_printer = re.sub("\n", "", str(results_jamf_list_printer.get("stdout")))
@@ -1526,8 +1536,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 				response_update_printer = self.jamf_pro_api(
 					api_account = self.jps_privileged_api_account,
 					method = "put",
-					endpoint = f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}\
-						/{jps_printer.printer_id}",
+					endpoint = (
+						f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}/{jps_printer.printer_id}"
+					),
 					send_content_type = "xml",
 					data = payload.encode("utf-8"),
 					warning_callback = warning_callback
@@ -1604,8 +1615,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 			response_delete_printer = self.jamf_pro_api(
 				api_account = self.jps_privileged_api_account,
 				method = "delete",
-				endpoint = f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}\
-					/{jps_printer.printer_id}",
+				endpoint = (
+					f"{CLASSIC_API_ENDPOINTS.get('printers_by_id')}/{jps_printer.printer_id}"
+				),
 				warning_callback = warning_callback
 			)
 
@@ -1664,7 +1676,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 	def jamf_pro_api(self, api_account: dict, method: str, endpoint: str,
 		receive_content_type: str = "json", send_content_type = "xml",
-		data: str | dict | None = None, **kwargs):
+		data: Union[str, dict, None] = None, **kwargs):
 		"""Helper function to interact with the Jamf Pro API(s).
 
 		Args:
@@ -1708,7 +1720,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 				return requests.get(url=url, headers=headers)
 
-			elif method == "post" | "create":
+			elif method in { "post", "create" }:
 
 				return requests.post(
 					url = url,
@@ -1716,7 +1728,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 					data = data
 				)
 
-			elif method == "put" | "update":
+			elif method in { "put", "update" }:
 
 				return requests.put(
 					url = url,
@@ -2325,8 +2337,10 @@ def get_timestamp(date: datetime = datetime.now(), format_string: str = "%Y-%m-%
 	"""Helper function to generate a datetime string.
 
 	Args:
-		date (datetime, optional): A datetime object to convert to a string. Defaults to datetime.now().
-		format_string (str, optional): Format to convert the datetime object to. Defaults to "%Y-%m-%d %I:%M:%S".
+		date (datetime, optional): A datetime object to convert to a string.
+			Defaults to datetime.now().
+		format_string (str, optional): Format to convert the datetime object to.
+			Defaults to "%Y-%m-%d %I:%M:%S".
 
 	Returns:
 		str: A string formatted datetime object
@@ -2408,8 +2422,10 @@ if __name__ == "__main__":
 	else:
 
 		# If we're unable to acquire the image from the Jamf Pro server, use a local icon
-		app_icon = "/System/Library/CoreServices/CoreTypes.bundle\
-			/Contents/Resources/ToolbarCustomizeIcon.icns"
+		app_icon = (
+			"/System/Library/CoreServices/CoreTypes.bundle"
+			"/Contents/Resources/ToolbarCustomizeIcon.icns"
+		)
 
 	# Set an icon
 	icon = QtGui.QIcon()
