@@ -10,8 +10,6 @@ import re
 import sys
 import traceback
 
-import _tkinter
-
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Union
@@ -21,15 +19,15 @@ from xml.sax.saxutils import escape
 import requests
 
 from cryptography.fernet import Fernet
-from PySide2 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 
 __application__ = "Jamf Pro Printer Tool"
-__version__ = "v1.8.1"
+__version__ = "v2.0.0"
 __author__ = "Zack Thompson"
 __created__ = "8/11/2020"
-__updated__ = "10/3/2023"
-__description__ = ("This script utilizes the PySide2 Library (Qt) to generate a GUI that Site "
+__updated__ = "10/24/2023"
+__description__ = ("This script utilizes the PySide6 Library (Qt) to generate a GUI that Site "
 					"Admins can use to manage their own printers within Jamf Pro.")
 __about__ = """<html><head/><body><p><strong>Created By:</strong>  Zack Thompson</p>
 
@@ -45,7 +43,7 @@ Source code can be found on <a href="https://github.com/MLBZ521/JamfProPrinterTo
 <p>The code that generates the "Jamf Pro Printer Tool" is licensed under the MIT License.  A copy \
 	of the MIT License can be found below.</p>
 
-<p>This application utilizes the Qt Framework (specifically PySide2) to generate the GUI portion \
+<p>This application utilizes the Qt Framework (specifically PySide6) to generate the GUI portion \
 	of the application.  The author of this application has made efforts to abide by the Qt LGPL \
 	License terms.  Additional information can be found below.</p>
 
@@ -54,13 +52,13 @@ Source code can be found on <a href="https://github.com/MLBZ521/JamfProPrinterTo
 
 
 <p><strong>About Qt</strong></p>
-<p>This program uses Qt version 5.15.2</p>
+<p>This program uses Qt 6</p>
 
 <p>Qt is a C++ toolkit for cross-platform application development.  Qt is The Qt Company Ltd \
 	product developed as an open source project. See <a href="https://qt.io">qt.io</a> for more \
 	information.</p>
 
-<p>Qt and Qt for Python (PySide2) are licensed under the GNU (L)GPLv3.  Please see <a \
+<p>Qt and Qt for Python (PySide6) are licensed under the GNU (L)GPLv3.  Please see <a \
 	href="https://qt.io/licensing">qt.io/licensing</a> for an overview of Qt licensing.</p>
 
 <p>Copyright (C) 2020 The Qt Company Ltd and other contributors.  Qt and the Qt logo are \
@@ -297,14 +295,14 @@ class Ui_MainWindow(object):
 		self.statusBar = QtWidgets.QStatusBar(MainWindow)
 		self.statusBar.setObjectName("statusBar")
 		MainWindow.setStatusBar(self.statusBar)
-		self.actionClearAPIToken = QtWidgets.QAction(MainWindow)
+		self.actionClearAPIToken = QtGui.QAction(MainWindow)
 		self.actionClearAPIToken.setShortcutVisibleInContextMenu(False)
 		self.actionClearAPIToken.setObjectName("actionClearAPIToken")
-		self.actionExit = QtWidgets.QAction(MainWindow)
+		self.actionExit = QtGui.QAction(MainWindow)
 		self.actionExit.setObjectName("actionExit")
-		self.actionShow_Details = QtWidgets.QAction(MainWindow)
+		self.actionShow_Details = QtGui.QAction(MainWindow)
 		self.actionShow_Details.setObjectName("actionShow_Details")
-		self.actionAbout = QtWidgets.QAction(MainWindow)
+		self.actionAbout = QtGui.QAction(MainWindow)
 		self.actionAbout.setObjectName(u"actionAbout")
 		self.menuFile.addAction(self.actionExit)
 		self.menuFile.addAction(self.actionAbout)
@@ -549,7 +547,7 @@ class LoginWindow(QtWidgets.QDialog, Ui_LoginWindow):
 		self.closeLoginWindow.close.connect(self.close_window)
 
 		# Setup action for Key Press
-		QtWidgets.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.on_escape)
+		QtGui.QShortcut(QtGui.QKeySequence("Escape"), self, activated=self.on_escape)
 
 
 	@QtCore.Slot()
@@ -842,7 +840,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		# Display Login UI
 		self.about = About(parent=self)
-		self.about.exec_()
+		self.about.exec()
 
 
 	def login_prompt(self):
@@ -855,7 +853,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
 
 		# Display Login UI
 		self.login = LoginWindow(parent=self)
-		self.login.exec_()
+		self.login.exec()
 
 		# Wake up
 		self.condition.wakeAll()
@@ -2437,4 +2435,4 @@ if __name__ == "__main__":
 
 	# Show the GUI
 	gui.show()
-	sys.exit(app.exec_())
+	sys.exit(app.exec())
